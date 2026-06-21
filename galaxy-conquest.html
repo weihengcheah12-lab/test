@@ -119,8 +119,11 @@ button{ font-family:var(--font-ui); cursor:pointer; color:inherit; }
 .planet .capmark{ position:absolute; inset:30%; border-radius:50%; border:1px solid rgba(255,255,255,.7); }
 .planet .count{ position:absolute; bottom:-7px; right:-9px; min-width:16px; height:15px; padding:0 3px; display:grid; place-items:center;
   font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--ink); background:rgba(4,7,13,.92); }
-.planet .pname{ position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:10px;
-  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); font-weight:500; pointer-events:none; }
+.planet .pname{ position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:9.5px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim); font-weight:500; pointer-events:none;
+  padding:1px 4px; border-radius:3px; background:rgba(4,7,13,.5);
+  text-shadow:0 1px 2px rgba(2,5,10,.95), 0 0 3px rgba(2,5,10,.9); }
+.planet.src .pname, .planet.target .pname{ background:rgba(4,7,13,.78); }
 .planet .hero{ position:absolute; top:-13px; left:50%; transform:translateX(-50%); width:18px; height:18px; display:grid; place-items:center;
   clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); background:rgba(4,7,13,.85); font-size:9px; line-height:1; }
 .planet .auras{ position:absolute; top:-12px; right:-13px; display:flex; gap:2px; font-size:10px; line-height:1;
@@ -163,6 +166,18 @@ button{ font-family:var(--font-ui); cursor:pointer; color:inherit; }
 .beacon-dash{ position:absolute; inset:-19px; border-radius:50%; pointer-events:none; border:1px dashed rgba(243,210,122,.55); animation:spinr 30s linear infinite; }
 .beacon-glyph{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff7e0; text-shadow:0 0 6px var(--gold); pointer-events:none; line-height:1; }
 .zonelabel{ position:absolute; top:3%; font-size:10px; letter-spacing:.3em; font-weight:600; opacity:.6; pointer-events:none; }
+/* §10f — zoom/pan camera (large galaxy boards). The .mapwrap is the transformed layer; .center clips it. */
+.center.pannable{ cursor:grab; touch-action:none; }
+.center.panning{ cursor:grabbing; }
+.mapwrap{ position:absolute; inset:0; transform-origin:0 0; will-change:transform; }
+.mapwrap.nolabels .pname{ display:none; }                       /* overview: hide chatter, keep only marquee labels */
+.mapwrap.nolabels .planet.keeplabel .pname{ display:block; }
+.mapzoom{ position:absolute; right:12px; bottom:12px; z-index:8; display:flex; flex-direction:column; gap:6px; }
+.mapzoom .zbtn{ width:34px; height:34px; display:grid; place-items:center; font-size:17px; line-height:1; font-weight:700;
+  color:var(--ink); background:rgba(6,12,21,.86); border:1px solid var(--line-strong); cursor:pointer; backdrop-filter:blur(3px); }
+.mapzoom .zbtn:hover{ border-color:var(--holo); color:var(--holo); }
+.maphint{ position:absolute; left:12px; bottom:12px; z-index:8; font-size:9px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--ink-faint); background:rgba(6,12,21,.7); padding:4px 9px; border:1px solid var(--line); pointer-events:none; }
 
 /* fleet pips (triangles, per design) */
 .pips{ display:flex; flex-wrap:wrap; gap:5px; }
@@ -244,10 +259,24 @@ button{ font-family:var(--font-ui); cursor:pointer; color:inherit; }
   .onboard-grid{ grid-template-columns:1fr; }
   /* touch: buttons clear a 44px tap target (height only — width stays so rows never overflow). */
   .btn{ min-height:44px; }
-  /* the combat screen's three fixed-width columns must shrink & wrap rather than overflow */
-  .combat-cols{ flex-wrap:wrap; align-content:center; justify-content:center; padding:12px 14px !important; }
-  .cwide{ width:auto !important; max-width:100%; min-width:0; }
-  .combat-center{ width:auto !important; }
+  /* (3) THE button-reachability fix. Header/footer/button rows were authored as single no-wrap flex
+     lines sized for a wide desktop; on a phone they run past the edge and — because the shell clips
+     horizontal overflow — the spilled buttons become untappable. Let every inline-flex row wrap, and
+     let its children shrink below their content width, so an over-wide row reflows onto extra lines
+     instead of off the screen. Wrap is a no-op when the row already fits, so narrower rows are intact. */
+  /* ROW flex only — a column flex with a bounded height would instead wrap into extra *columns*, so
+     exclude flex-direction:column (the full-height screen roots and the scrollable reinforce list). */
+  #app [style*="display:flex"]:not([style*="flex-direction:column"]){ flex-wrap:wrap; }
+  #app [style*="display:flex"] > *{ min-width:0; }
+  /* the select-screen faction picker stacks (two big tabs won't sit side-by-side at phone width) */
+  .setup-tabs{ flex-direction:column !important; align-items:stretch !important; }
+  .setup-tabs .vs-sep{ width:100% !important; height:42px; }
+  /* the combat action bar (log | controls) collapses to one column so the buttons never overflow */
+  #app [style*="grid-template-columns:1fr auto"]{ grid-template-columns:1fr !important; }
+  /* the combat screen's three fixed-width columns stack into a full-width vertical sequence
+     (attacker → duel → defender). Shrinking-to-fit would crush each card to one letter per line. */
+  .combat-cols{ flex-direction:column; align-items:stretch; justify-content:flex-start; padding:12px 14px !important; }
+  .cwide, .combat-center{ width:100% !important; max-width:100%; min-width:0; }
 }
 @media (max-width:560px){   /* phone fallback — one scrollable column */
   .center{ height:50vh; min-height:240px; }
@@ -272,6 +301,11 @@ button{ font-family:var(--font-ui); cursor:pointer; color:inherit; }
   /* tighten the heavy section paddings that waste a small screen */
   [style*="padding-top:30px"]{ padding-top:16px !important; }
   [style*="padding:26px 36px"], [style*="padding:26px 40px"]{ padding:14px 12px !important; }
+  /* reclaim the wide desktop side-paddings (36–56px) on a phone so the screen headers/footers and the
+     combat/force columns have room to breathe before they wrap — content stops feeling "zoomed in". */
+  [style*="padding:14px 48px 24px"], [style*="padding:10px 48px 0"], [style*="padding:16px 56px 26px"],
+  [style*="padding:20px 30px 0"], [style*="padding:18px 36px 0"], [style*="padding:20px 36px 0"],
+  [style*="padding:14px 36px"], [style*="padding:0 36px"]{ padding-left:14px !important; padding-right:14px !important; }
   /* reinforce screen: let rows + the action footer wrap so the +/- steppers and Confirm button are never
      clipped off the right edge on a phone (the content is a touch wider than 390px in one line). */
   .rrow{ gap:8px !important; padding:11px 10px !important; flex-wrap:wrap; }
@@ -314,7 +348,7 @@ const GALAXY_WORLDS = [
   { id:'onderon',   name:'Onderon',      region:'Inner Rim',  x:43, y:73, start:'neutral', garrison:2 },
   { id:'dxun',      name:'Dxun',         region:'Inner Rim',  x:57, y:67, start:'manda',   garrison:3, slot:'neutral' },
   { id:'mandalore', name:'Mandalore',    region:'Outer Rim',  x:62, y:26, start:'manda',   garrison:4, capital:'manda' },
-  { id:'ordmantell',name:'Ord Mantell',  region:'Mid Rim',    x:55, y:46, start:'neutral', garrison:2 },
+  { id:'ordmantell',name:'Ord Mantell',  region:'Mid Rim',    x:64, y:41, start:'neutral', garrison:2 },
   { id:'yavin',     name:'Yavin 4',      region:'Outer Rim',  x:71, y:60, start:'sith',    garrison:3 },
   { id:'dromund',   name:'Dromund Kaas', region:'Sith Space', x:80, y:28, start:'sith',    garrison:5, slot:'sith' },
   { id:'korriban',  name:'Korriban',     region:'Sith Space', x:88, y:46, start:'sith',    garrison:7, capital:'sith', slot:'sith' },
@@ -478,11 +512,12 @@ function buildDeck(side){
 }
 
 const HAND_SIZE=5, MAX_CYCLES=24, LEGEND_COST=6, DEATHSTAR_HULL=3;   // universal; INF_CAP is per-theater (see loadTheater)
+const MAP={ LABEL_ZOOM:1.4, ZMIN:0.85, ZMAX:3.2, STEP:1.35 };        // §10f — zoom/pan camera (large galaxy boards)
 
 // §11 addendum — post-launch upgrade constants (SPEC §12–§16). All decided values; implemented exactly.
 const RULES_EXT = {
   // --- §12 session / QoL ---
-  SAVE_KEY:'gc_save_v1', SAVE_VERSION:1,      // bump version on any state-shape change
+  SAVE_KEY:'gc_save_v1', SAVE_VERSION:2,      // bump version on any state-shape change (v2: §7d player.roster + §4e advance choice)
   UNDO_STACK_MAX:40,                          // session-only; Reinforce + Maneuver + hero-deploy
   LOG_RETAIN:120,                             // raised from 60 so a full game is reviewable
   MUTE_KEY:'gc_muted', SFX_PEAK_GAIN:0.18,    // synth only; no audio asset files
@@ -676,6 +711,69 @@ const OUTERRIM_CHAMPIONS = {
 const OUTERRIM_DRAFT  = { jedi:['anakin','obiwan','ahsoka','cody'], sith:['dooku','grievous','ventress','tacticaldroid'] };
 const OUTERRIM_LEGEND = { jedi:'yoda', sith:'palpatine' };
 
+// §10f — "The Clone Wars" full-galaxy theater: a much larger 28-world board spanning Deep Core → Outer Rim,
+// laid out as a galaxy DISC (Republic holds the Core & coreward worlds; the Separatist Alliance presses in from
+// the Outer Rim). Reuses the Clone Wars roster (OUTERRIM_*). Opt-in zoom/pan camera (THEATER.zoomable) so the
+// whole galaxy is visible at default zoom and the player zooms in + pans to engage individual fronts.
+const CLONEWARS_WORLDS = [
+  /* ---- Galactic Republic (light) — the Core & coreward ---- */
+  { id:'kamino',    name:'Kamino',      region:'Wild Space',       x:8,  y:38, start:'jedi',    garrison:4 },
+  { id:'kashyyyk',  name:'Kashyyyk',    region:'Mid Rim',          x:13, y:70, start:'jedi',    garrison:3 },
+  { id:'corellia',  name:'Corellia',    region:'Core',             x:26, y:46, start:'jedi',    garrison:4 },
+  { id:'kuat',      name:'Kuat',        region:'Core',             x:27, y:60, start:'jedi',    garrison:3 },
+  { id:'coruscant', name:'Coruscant',   region:'Core',             x:37, y:50, start:'jedi',    garrison:6, capital:'jedi' },
+  { id:'alderaan',  name:'Alderaan',    region:'Core',             x:30, y:32, start:'jedi',    garrison:2 },
+  { id:'chandrila', name:'Chandrila',   region:'Core',             x:40, y:64, start:'jedi',    garrison:2 },
+  { id:'brentaal',  name:'Brentaal',    region:'Core',             x:45, y:40, start:'jedi',    garrison:2 },
+  { id:'naboo',     name:'Naboo',       region:'Mid Rim',          x:28, y:78, start:'jedi',    garrison:3 },
+  /* ---- contested battlegrounds (neutral) — the Colonies, Inner & Mid Rim ---- */
+  { id:'onderon',   name:'Onderon',     region:'Colonies',         x:47, y:26, start:'neutral', garrison:2 },
+  { id:'duro',      name:'Duro',        region:'Colonies',         x:48, y:54, start:'neutral', garrison:2 },
+  { id:'bothawui',  name:'Bothawui',    region:'Inner Rim',        x:54, y:46, start:'neutral', garrison:5, nexus:true },
+  { id:'ordmantell',name:'Ord Mantell', region:'Inner Rim',        x:50, y:68, start:'neutral', garrison:2 },
+  { id:'malastare', name:'Malastare',   region:'Mid Rim',          x:57, y:78, start:'neutral', garrison:2 },
+  { id:'sullust',   name:'Sullust',     region:'Mid Rim',          x:60, y:34, start:'neutral', garrison:2 },
+  { id:'christophsis',name:'Christophsis',region:'Mid Rim',        x:61, y:54, start:'neutral', garrison:3 },
+  { id:'ryloth',    name:'Ryloth',      region:'Mid Rim',          x:58, y:68, start:'neutral', garrison:2 },
+  { id:'saleucami', name:'Saleucami',   region:'Outer Rim',        x:66, y:44, start:'neutral', garrison:2 },
+  { id:'dathomir',  name:'Dathomir',    region:'Outer Rim',        x:65, y:62, start:'neutral', garrison:2 },
+  { id:'felucia',   name:'Felucia',     region:'Outer Rim',        x:70, y:74, start:'neutral', garrison:2 },
+  { id:'tatooine',  name:'Tatooine',    region:'Outer Rim',        x:74, y:32, start:'neutral', garrison:2 },
+  /* ---- Separatist Alliance (dark) — the Outer Rim strongholds ---- */
+  { id:'geonosis',  name:'Geonosis',    region:'Outer Rim',        x:70, y:24, start:'sith',    garrison:3 },
+  { id:'mygeeto',   name:'Mygeeto',     region:'Outer Rim',        x:73, y:56, start:'sith',    garrison:3 },
+  { id:'hypori',    name:'Hypori',      region:'Outer Rim',        x:77, y:40, start:'sith',    garrison:3 },
+  { id:'utapau',    name:'Utapau',      region:'Outer Rim',        x:80, y:70, start:'sith',    garrison:4 },
+  { id:'mustafar',  name:'Mustafar',    region:'Outer Rim',        x:83, y:50, start:'sith',    garrison:5 },
+  { id:'serenno',   name:'Serenno',     region:'Separatist Space', x:85, y:32, start:'sith',    garrison:4 },
+  { id:'raxus',     name:'Raxus',       region:'Separatist Space', x:90, y:52, start:'sith',    garrison:7, capital:'sith' },
+];
+const CLONEWARS_LANES = [
+  // Republic core & approaches
+  ['kamino','corellia'],['kamino','kashyyyk'],['kashyyyk','kuat'],['kashyyyk','naboo'],
+  ['corellia','coruscant'],['corellia','alderaan'],['corellia','kuat'],
+  ['kuat','coruscant'],['kuat','chandrila'],['kuat','naboo'],
+  ['alderaan','coruscant'],['alderaan','onderon'],['alderaan','brentaal'],
+  ['coruscant','brentaal'],['coruscant','chandrila'],['coruscant','duro'],
+  ['chandrila','ordmantell'],['naboo','ordmantell'],
+  ['brentaal','bothawui'],['brentaal','onderon'],
+  // contested middle
+  ['onderon','sullust'],['duro','bothawui'],['duro','ordmantell'],
+  ['bothawui','christophsis'],['bothawui','sullust'],
+  ['ordmantell','ryloth'],['ordmantell','malastare'],['malastare','ryloth'],
+  ['ryloth','christophsis'],['ryloth','dathomir'],['ryloth','felucia'],
+  ['christophsis','saleucami'],['christophsis','dathomir'],
+  ['sullust','saleucami'],['sullust','geonosis'],['sullust','tatooine'],
+  // Separatist rim
+  ['saleucami','geonosis'],['saleucami','mygeeto'],['saleucami','hypori'],
+  ['dathomir','mygeeto'],['dathomir','felucia'],['felucia','utapau'],
+  ['tatooine','geonosis'],['tatooine','hypori'],
+  ['geonosis','hypori'],['geonosis','serenno'],['hypori','serenno'],['hypori','mustafar'],
+  ['mygeeto','mustafar'],['mygeeto','utapau'],['utapau','mustafar'],['utapau','raxus'],
+  ['mustafar','raxus'],['serenno','raxus'],
+];
+const CLONEWARS_REGION_BONUS = { 'Core':1, 'Colonies':1, 'Inner Rim':2, 'Mid Rim':1, 'Outer Rim':2, 'Separatist Space':2, 'Wild Space':1 };
+
 const MAPS = {
   galaxy: {
     id:'galaxy', name:'The Galactic War', era:'New Sith Wars', tagline:'New Sith Wars · Theatre of Ruusan',
@@ -734,10 +832,10 @@ const MAPS = {
     darkPassiveText:'Imperial Garrison · +1 influence per room taken',
     rules:['smallBoard','compactorHazard'],
   },
-  // §15b — Clone Wars: proves the registry a third time (almost pure map data; rules:[]).
+  // §15b — Clone Wars Outer Rim: proves the registry a third time (almost pure map data; rules:[]).
   outerrim: {
-    id:'outerrim', name:'Clone Wars', era:'Clone Wars', tagline:'Clone Wars · Outer Rim Sieges',
-    scale:'Full galaxy · 14 worlds', motif:'galaxy', state:'new',
+    id:'outerrim', name:'Outer Rim Sieges', era:'Clone Wars', tagline:'Clone Wars · Outer Rim Sieges',
+    scale:'Outer Rim · 14 worlds', motif:'galaxy', state:'available',
     special:'Hold Christophsis to fund your legend.', light:'jedi', dark:'sith',
     worlds:OUTERRIM_WORLDS, lanes:OUTERRIM_LANES, regionBonus:OUTERRIM_REGION_BONUS,
     champions:OUTERRIM_CHAMPIONS, draftPool:OUTERRIM_DRAFT, legendOf:OUTERRIM_LEGEND, fac:OUTERRIM_FAC,
@@ -749,8 +847,24 @@ const MAPS = {
     darkPassiveText:'Passive · +1 influence per world conquered',
     rules:[],
   },
+  // §10f — "The Clone Wars": the full galactic war, a much larger 28-world galaxy DISC with a zoom/pan camera.
+  clonewars: {
+    id:'clonewars', name:'The Clone Wars', era:'Clone Wars', tagline:'The full galactic war · Core to Rim',
+    scale:'Full galaxy · 28 worlds', motif:'galaxy', state:'new',
+    special:'The whole galaxy at war — zoom & pan the front. Hold Bothawui to fund your legend.', light:'jedi', dark:'sith',
+    worlds:CLONEWARS_WORLDS, lanes:CLONEWARS_LANES, regionBonus:CLONEWARS_REGION_BONUS,
+    champions:OUTERRIM_CHAMPIONS, draftPool:OUTERRIM_DRAFT, legendOf:OUTERRIM_LEGEND, fac:OUTERRIM_FAC,
+    caps:{ jedi:'coruscant', sith:'raxus' }, nexusId:'bothawui', nexusName:'Bothawui', infCap:12,
+    corePassive:['coruscant','corellia'],
+    neutralGuards:[],
+    zoneLabels:{ light:'REPUBLIC SPACE', dark:'SEPARATIST SPACE' },
+    lightPassiveText:'Passive · +1 fleet per held Core world',
+    darkPassiveText:'Passive · +1 influence per world conquered',
+    rules:[],
+    zoomable:true, galaxyDisc:true,   // §10f — large board: render the galaxy disc + enable the zoom/pan camera
+  },
 };
-const THEATER_ORDER = ['galaxy','ruusan','deathstar','interior','outerrim'];
+const THEATER_ORDER = ['galaxy','clonewars','ruusan','deathstar','interior','outerrim'];
 // Point THEATER at a map and rebind every derived global (§10a/§10b).
 function loadTheater(id){
   THEATER = MAPS[id] || MAPS.galaxy;
@@ -770,22 +884,30 @@ function sc(side){ return side==='jedi'
 
 /* ----------------------------- STATE ------------------------------------- */
 let G=null, UI={}, aiTimer=null;
+// §17 — online multiplayer live state (NEVER serialized into G; like aiTimer it's transport, not game state).
+// role:'host' owns the authoritative G + dice and broadcasts; 'guest' mirrors host state and relays its input.
+let NET=null;   // { role, mySide, oppSide, send(msg), status, peer, conn, roomCode, chat:[], aiSides:{} }
+function isOnline(){ return !!(NET && NET.role); }
+function isHost(){ return isOnline() && NET.role==='host'; }
+function isGuest(){ return isOnline() && NET.role==='guest'; }
+function netSideIsAI(side){ return !!(NET && NET.aiSides && NET.aiSides[side]); }   // a dropped player's side, taken over by the AI
 
 function newGame(humanSide, humanChamps, aiChamps, aiLevel){
   const worlds={};
-  WORLDS.forEach(w=>{ worlds[w.id]={ id:w.id, owner:w.start, fleets:w.garrison, champion:null,
-    barrier:null, valor:null, mindtrick:null, shield:null, dread:null, rage:null, illusion:null }; });
+  WORLDS.forEach(w=>{ worlds[w.id]={ ...w, owner:w.start, fleets:w.garrison, champion:null,
+    barrier:null, valor:null, mindtrick:null, shield:null, dread:null, rage:null, illusion:null }; });   // spread w so name/region/nexus/x/y travel with the live state (combat title & logs read them)
   if(hasRule('deathStar')) WORLDS.forEach(w=>{ if(w.ds){ worlds[w.id].ds=true; worlds[w.id].hull=DEATHSTAR_HULL; } });   // §10d — the Death Star's hull
   (THEATER.neutralGuards||[]).forEach(g=>{ if(worlds[g.world]) worlds[g.world].champion=mkChamp(g.kind,'neutral'); });
 
   const mk=(side)=>({ side, influence:3, deck:buildDeck(side), hand:[], discard:[],
-    battlemed:false, foresight:false, legendUnlocked:false, fallenSith:0, champDieBuff:0 });
+    battlemed:false, foresight:false, legendUnlocked:false, fallenSith:0, champDieBuff:0, roster:[] });
   G={ worlds, humanSide, aiSide:opp(humanSide), firstSide:humanSide,
     players:{ jedi:mk('jedi'), sith:mk('sith') },
-    active:humanSide, phase:0, cycle:1, turnSeq:0, pool:0, reinforced:{}, maneuvered:{}, struck:{},
+    active:humanSide, phase:0, cycle:1, turnSeq:0, pool:0, reinforced:{}, maneuvered:{},
     combat:null, log:[], winner:null, over:false, aiLevel:clamp(typeof aiLevel==='number'?aiLevel:1,0,2),
     capOverride:null, baseRevealed:!hasRule('hiddenBase'), baseRelocated:false,   // §10d Hidden Base concealment
     deploySide:humanSide, deployQueue:humanChamps.slice() };   // the player positions their champions first
+  G.players[humanSide].roster=humanChamps.slice(); G.players[G.aiSide].roster=aiChamps.slice();   // §7d — committed kinds; reserve roster (DRAFT_POOL minus these & the legend) is recruitable on the Force page
   mandaInit();                                                 // §16 — opt-in third faction (no-op unless the map declares the hook)
   autoPlaceChampions(G.aiSide, aiChamps);                      // the AI deploys its own
   drawToHand('jedi'); drawToHand('sith');
@@ -797,19 +919,20 @@ function newGame(humanSide, humanChamps, aiChamps, aiLevel){
 function newGameHotseat(lightChamps, darkChamps){
   const L=THEATER.light, D=THEATER.dark;
   const worlds={};
-  WORLDS.forEach(w=>{ worlds[w.id]={ id:w.id, owner:w.start, fleets:w.garrison, champion:null,
-    barrier:null, valor:null, mindtrick:null, shield:null, dread:null, rage:null, illusion:null }; });
+  WORLDS.forEach(w=>{ worlds[w.id]={ ...w, owner:w.start, fleets:w.garrison, champion:null,
+    barrier:null, valor:null, mindtrick:null, shield:null, dread:null, rage:null, illusion:null }; });   // spread w so name/region/nexus/x/y travel with the live state (combat title & logs read them)
   if(hasRule('deathStar')) WORLDS.forEach(w=>{ if(w.ds){ worlds[w.id].ds=true; worlds[w.id].hull=DEATHSTAR_HULL; } });
   (THEATER.neutralGuards||[]).forEach(g=>{ if(worlds[g.world]) worlds[g.world].champion=mkChamp(g.kind,'neutral'); });
   const mk=(side)=>({ side, influence:3, deck:buildDeck(side), hand:[], discard:[],
-    battlemed:false, foresight:false, legendUnlocked:false, fallenSith:0, champDieBuff:0 });
+    battlemed:false, foresight:false, legendUnlocked:false, fallenSith:0, champDieBuff:0, roster:[] });
   G={ worlds, humanSide:L, aiSide:D, firstSide:L,
     players:{ jedi:mk('jedi'), sith:mk('sith') },
-    active:L, phase:0, cycle:1, turnSeq:0, pool:0, reinforced:{}, maneuvered:{}, struck:{},
+    active:L, phase:0, cycle:1, turnSeq:0, pool:0, reinforced:{}, maneuvered:{},
     combat:null, log:[], winner:null, over:false, aiLevel:1,
     capOverride:null, baseRevealed:!hasRule('hiddenBase'), baseRelocated:false,
     hotseat:true, hsPending:{ [D]:darkChamps.slice() },   // Dark still needs to deploy after Light
     deploySide:L, deployQueue:lightChamps.slice() };
+  G.players[L].roster=lightChamps.slice(); G.players[D].roster=darkChamps.slice();   // §7d — recruitable reserve = DRAFT_POOL minus these & the legend
   mandaInit();                                          // §16 — opt-in third faction
   drawToHand('jedi'); drawToHand('sith');
   UI={ screen:'deployheroes', sel:capitalOf(L), src:null, moveN:1, targeting:null, forceSel:0, toast:null };
@@ -885,7 +1008,7 @@ function grantTurnStartInfluence(side){
 function startTurn(side, first){
   G.active=side; G.phase=0; G.turnSeq++; undoClear();   // §12b — a fresh turn starts a fresh undo history
   if(G.hotseat){ G.humanSide=side; G.aiSide=opp(side); }   // §14.3 — POV trick: the active side IS "the human", so all perspective code just works
-  G.reinforced={}; G.maneuvered={}; G.struck={}; UI.src=null; UI.targeting=null; UI.moveN=1; UI.moveChamp=false; UI.forceSel=0;
+  G.reinforced={}; G.maneuvered={}; UI.src=null; UI.targeting=null; UI.moveN=1; UI.moveChamp=false; UI.forceSel=0;
   // expire this player's timed DEFENSIVE auras — they shielded us through the enemy turn, now clear at our turn start.
   // NOTE: Sith Rage is offensive ("your next assault from a chosen world +1") and the Force phase is *after* Assault,
   // so it's always cast for next turn's assault — it must NOT be wiped here, or it could never be used. It persists
@@ -908,10 +1031,17 @@ function startTurn(side, first){
   G.pool=reinforcePool(side);
   if(side===G.humanSide && holdsNexus) toast(`You hold the ${THEATER.nexusName} nexus — +2 ◈/cycle`);
   syncScreen(); render();
-  if(!G.hotseat && side===G.aiSide) scheduleAI();   // §14.1 — hotseat never runs the AI
+  if(isOnline()){ if(netSideIsAI(side)) scheduleAI(); }   // §17 — AI only drives a side a dropped player abandoned
+  else if(!G.hotseat && side===G.aiSide) scheduleAI();    // §14.1 — hotseat never runs the AI
 }
 function syncScreen(){
   if(G.over) return;
+  if(isOnline()){                                  // §17 — per-client: act on your own turn, otherwise spectate the board
+    if(G.combat){ UI.screen='combat'; return; }     // a battle is public — both players watch it
+    UI.screen = (G.active===G.humanSide && !netSideIsAI(G.active))
+      ? (UI.targeting ? 'board' : (G.phase===0?'deploy':G.phase===3?'force':'board'))   // targeting a Force power happens on the board
+      : 'board';
+    return; }
   if(UI.screen==='combat') return;
   if(G.active===G.aiSide){ UI.screen='board'; return; }
   UI.screen = G.phase===0 ? 'deploy' : G.phase===3 ? 'force' : 'board';
@@ -983,7 +1113,7 @@ function doManeuver(fromId,toId,n,moveChamp){
 
 /* --------------------------- COMBAT -------------------------------------- */
 function canAssaultFrom(wid){ const W=G.worlds[wid];
-  if(W.owner!==G.active||W.fleets<2||G.struck[wid]) return false; return ADJ[wid].some(n=>isAssaultTarget(wid,n)); }
+  if(W.owner!==G.active||W.fleets<2) return false; return ADJ[wid].some(n=>isAssaultTarget(wid,n)); }
 function isAssaultTarget(fromId,toId){ const T=G.worlds[toId];
   if(T.owner===G.active) return false;
   if(T.barrier) return false;
@@ -1318,24 +1448,30 @@ function captureWorld(){
   const c=G.combat; const src=G.worlds[c.fromId];
   c.captured=true; c.step='fleet';
   c.advancing = !!(src.champion && src.champion.side===c.atk);         // §4e — surviving attacking champion advances
-  // the player now chooses how much of the assault force pushes in (§4e). 1 fleet always garrisons the source;
-  // the captured world must hold ≥1 fleet UNLESS a surviving champion stays to hold it.
+  // the player chooses how much of the assault force pushes in (§4e). A conquered world must always be held
+  // by ≥1 FLEET — a champion never garrisons a world alone, so at least one fleet advances with it. 1 fleet
+  // normally stays to hold the source; the EDGE where the source has only its last fleet (moveMax 0) means
+  // taking the world empties the source — it's abandoned (c.overextend), so every held world still keeps ≥1 fleet.
   c.moveMax = Math.max(0, src.fleets-1);
-  c.moveMin = c.advancing ? 0 : Math.min(1, c.moveMax);
-  c.moveN   = c.moveMax;                                               // default: commit the whole front line (momentum forward)
+  c.overextend = (c.moveMax===0);                                      // no spare fleet — the source falls when the world is taken
+  c.moveMin = Math.min(1, c.moveMax);
+  c.moveN   = c.overextend ? 1 : c.moveMax;                            // default: commit the whole front line (momentum forward)
   render();   // the capture-confirmation step now offers a fleet chooser before the world changes hands
 }
 function confirmCapture(){
   const c=G.combat, capturedId=c.toId;
   const src=G.worlds[c.fromId], tgt=G.worlds[c.toId];
   let move=clamp(c.moveN, c.moveMin, c.moveMax);
-  if(!c.advancing && move<1) move=Math.min(1, c.moveMax);             // a world with no champion needs a fleet to hold it
+  if(move<1) move=Math.min(1, src.fleets);                           // §4e — a champion never holds a world alone: ≥1 fleet always garrisons the conquest (pulling the source's last fleet if need be)
   tgt.fleets=move; src.fleets-=move; tgt.owner=c.atk; tgt.valor=null; tgt.rage=null;   // the conquered world sheds the old owner's auras
-  G.struck[tgt.id]=true;   // a freshly-taken world can't launch another assault this turn (no one-turn map-wide blitz)
   let champNote='';
   if(c.advancing){ tgt.champion=src.champion; src.champion=null; champNote=` and the ${CHAMPIONS[tgt.champion.kind].name}`; }
   else tgt.champion=null;
+  // (a freshly-taken world may immediately launch a follow-up assault — the old one-turn "struck" lock was removed)
   logMsg(`<b class="${c.atk[0]}">${FAC[c.atk].short}</b> captures <b class="g">${tgt.name}</b> — ${move} fleet(s)${champNote} move in.`);
+  if(src.fleets<=0 && !src.champion && src.owner===c.atk){            // committed everything — the emptied source can't be held by nothing
+    src.owner='neutral'; src.valor=null; src.rage=null;
+    logMsg(`<b class="${c.atk[0]}">${FAC[c.atk].short}</b> leave <b>${src.name}</b> undefended — it slips to Independent control.`); }
   if(c.atk==='sith'){ const b=P('sith').influence; P('sith').influence=clamp(P('sith').influence+1,0,INF_CAP);   // dark-side conquest economy
     if(P('sith').influence>b) logMsg(`<b class="s">${FAC['sith'].short}</b> draw +1 ◈ from the conquest.`); }
   creditScaling();   // Luke etc — credit the survived battle
@@ -1499,6 +1635,23 @@ function unlockLegend(side){ if(!canUnlockLegend(side)) return false; const pl=P
   logMsg(`<b class="${side[0]}">${FAC[side].short}</b> unleash a legend — <b class="g">${CHAMPIONS[kind].name}</b> takes the field at ${byId[host.id].name}.`);
   return true; }
 
+/* ---- recruitable reserve champions (§7d): call an undrafted roster champion to the field on the Force phase ---- */
+// A free held world hosts the newcomer (capital first), mirroring the legend's landing.
+function recruitHost(side){ const cap=G.worlds[capitalOf(side)];
+  if(cap && cap.owner===side && !cap.champion) return cap;
+  return worldsOf(side).find(w=>!w.champion) || null; }
+// The reserve = this side's full roster minus the champions already committed (drafted/recruited) and minus the legend (own unlock).
+function recruitable(side){ const pl=P(side), legend=LEGEND_OF[side];
+  return (DRAFT_POOL[side]||[]).filter(kind => kind!==legend && !(pl.roster||[]).includes(kind)); }
+function canRecruit(side,kind){ const pl=P(side), c=CHAMPIONS[kind];
+  return recruitable(side).includes(kind) && !!c && pl.influence>=c.cost && !!recruitHost(side); }
+function recruitChampion(side,kind){ if(!canRecruit(side,kind)) return false; const pl=P(side), c=CHAMPIONS[kind];
+  undoClear(); sfx('legend');   // §7d/§12b — committing a reserve champion is irreversible (mirrors the legend unlock)
+  const host=recruitHost(side); pl.influence-=c.cost; (pl.roster=pl.roster||[]).push(kind);
+  host.champion=mkChamp(kind,side);
+  logMsg(`<b class="${side[0]}">${FAC[side].short}</b> call up a reserve — <b class="g">${c.name}</b> takes the field at ${byId[host.id].name}.`);
+  return true; }
+
 /* ============================ AI ========================================== */
 function scheduleAI(){ if(aiTimer) clearTimeout(aiTimer); aiTimer=setTimeout(aiStep, 850); }
 function aiStep(){
@@ -1511,7 +1664,19 @@ function aiStep(){
   else aiForce();
 }
 function frontWorlds(s){ return worldsOf(s).filter(w=>ADJ[w.id].some(n=>G.worlds[n].owner!==s)); }
-function threat(wid){ return ADJ[wid].reduce((s,n)=> s+(G.worlds[n].owner===G.aiSide?0:G.worlds[n].fleets),0); }
+// Pressure on a world. Direct adjacent enemy/neutral fleets PLUS a one-turn CHAIN threat: now that a
+// freshly-captured world can immediately strike again, an enemy stack one hop beyond a soft neutral buffer
+// can seize that buffer and push through THIS turn — counted at a discount (force spent taking the buffer).
+function threat(wid){ const me=G.aiSide, foe=opp(me);
+  let t=0;
+  for(const n of ADJ[wid]){ const N=G.worlds[n];
+    if(N.owner===me) continue;                                   // a friendly neighbour is no threat
+    t += N.fleets;                                               // direct adjacent pressure
+    if(N.owner!==foe){                                           // a neutral/raider buffer the enemy could capture, then chain through
+      for(const m2 of ADJ[n]){ if(m2===wid) continue; const M=G.worlds[m2];
+        if(M.owner===foe && M.fleets>N.fleets) t += Math.round((M.fleets-N.fleets)*0.5); } }
+  }
+  return t; }
 // concentrate the bulk of the pool on the spearhead — the held front world nearest the enemy capital
 function reinforceConcentrate(side){ const dist=DIST[opp(side)]; const P=aiParams(side);
   const spear=worldsOf(side).filter(w=>isFinite(dist[w.id]) && ADJ[w.id].some(n=>G.worlds[n].owner!==side))
@@ -1534,7 +1699,7 @@ function aiAssault(){ const m=bestAssault(G.aiSide);
   if(m) startAssault(m.from,m.to); else aiTimer=setTimeout(()=>{ advancePhase(); scheduleAI(); },600); }
 function bestAssault(side){ const dist=DIST[opp(side)]; const ecap=capitalOf(opp(side)); const P=aiParams(side);
   let best=null,bestScore=P.baseThresh;
-  for(const w of worldsOf(side)){ if(w.fleets<2||G.struck[w.id]) continue;
+  for(const w of worldsOf(side)){ if(w.fleets<2) continue;
     const hasCh=w.champion && w.champion.side===side;
     if(Math.min(3,w.fleets-1)+(hasCh?2:0) < 2) continue;             // don't launch an assault aiCombat would instantly break off (<2 dice)
     for(const n of ADJ[w.id]){ if(!isAssaultTarget(w.id,n)) continue;
@@ -1558,8 +1723,19 @@ function aiCombat(){ if(!G || G.over) return; const c=G.combat; if(!c) return;  
       (src.fleets<=2 && !aChAlive && (tgt.fleets + (tgt.champion?2:0))>=3))){
     retreatAssault(); aiTimer=setTimeout(scheduleAI,500); return; }
   combatRoundStep(); render(); aiTimer=setTimeout(aiCombat, 900); }
+// §7d — should the AI call up a reserve champion this Force phase? Always restores power-channeling when it
+// has none on the board; otherwise only with surplus ◈ that won't starve a pending legend unlock.
+function aiRecruit(me){ const pl=P(me); if(!recruitHost(me)) return false;
+  const list=recruitable(me).filter(k=>pl.influence>=CHAMPIONS[k].cost).sort((a,b)=>CHAMPIONS[a].cost-CHAMPIONS[b].cost);
+  if(!list.length) return false;
+  const kind=list[0], cost=CHAMPIONS[kind].cost;
+  const noChamp=livingChampions(me).length===0;
+  const reserveForLegend = (aiParams(me).legendEager && !pl.legendUnlocked) ? LEGEND_COST : 0;
+  if(!noChamp && pl.influence-cost < reserveForLegend) return false;   // hold ◈ for the capstone unless we're championless
+  return recruitChampion(me,kind); }
 function aiForce(){ const me=G.aiSide, pl=P(me); const par=aiParams(me);
   if(par.legendEager && canUnlockLegend(me)){ unlockLegend(me); render(); aiTimer=setTimeout(()=>{ advancePhase(); scheduleAI(); },900); return; }
+  if(aiRecruit(me)){ render(); aiTimer=setTimeout(()=>{ advancePhase(); scheduleAI(); },900); return; }   // call up a reserve champion
   if(livingChampions(me).length>0){ let bi=-1,bt=null,bv=0;
     pl.hand.forEach((id,idx)=>{ if(!canChannel(me,idx)) return; const e=evalPower(me,id); if(e.val>bv){ bv=e.val; bi=idx; bt=e.target; } });
     if(bi>=0 && bv>=par.forceMin){ channelPower(me,bi,bt); logMsg(`<b class="${me[0]}">${FAC[me].short}</b> draw on the Force.`);   // wiser AI wields the Force more freely
@@ -1594,13 +1770,163 @@ function evalPower(side,id){ let val=0,target=null;
   }
   return { val, target }; }
 
+/* ============================ §17 ONLINE MULTIPLAYER ===================== */
+// Host-authoritative over WebRTC (PeerJS), but the TRANSPORT is abstracted behind NET.send + netReceive so the
+// relay logic is unit-testable headlessly with an in-process mock. The host owns G + the dice and broadcasts a
+// full snapshot after every change; the guest mirrors it and relays only its own input. Each client pins
+// G.humanSide to ITS OWN side, so the existing isHumanTurn / syncScreen spectator logic works for both unchanged.
+// vs-AI and Hotseat are completely untouched and need no connection — Online is purely additive.
+const NET_GRACE_MS=20000;   // a dropped peer has this long to reconnect before the AI takes their side
+// guest-local acts: PURE VIEW only (log/mute/onboard/camera) — run locally. Everything else (selection,
+// build-up, commits) relays to the host, which echoes the interaction UI back, so there is one source of truth.
+const NET_LOCAL_ACTS=new Set(['showlog','dismisslog','togglemute','showonboard','dismissonboard',
+  'zoomin','zoomout','zoomreset','noop']);
+// the interaction build-up the host echoes to the guest DURING THE GUEST'S TURN (so the guest mirrors its own
+// selection); the screen itself is derived locally by syncScreen, never taken from the host's spectator UI.
+const NET_UI_KEYS=['sel','src','moveN','moveChamp','forceSel','targeting'];
+let _applyingRemote=false;  // host: bypass the isHumanTurn gate while applying a VALIDATED relayed guest action
+
+function netClone(o){ return JSON.parse(JSON.stringify(o)); }
+function netSend(m){ if(NET && NET.send){ try{ NET.send(m); }catch(e){} } }
+// ---- state sync ----
+function netBroadcastState(){ if(!isHost() || !G) return;
+  // include the interaction UI ONLY while it's the guest's turn (so the guest mirrors its own selection but
+  // never sees the host's screen/hand). G is sent whole so a dropped player's side can be taken over by the AI.
+  const ui = (G.active===NET.oppSide) ? NET_UI_KEYS.reduce((o,k)=>{ o[k]=UI[k]; return o; },{}) : null;
+  const snap=JSON.stringify({ g:G, ui, ai:NET.aiSides||{} }); if(snap===NET._lastSent) return; NET._lastSent=snap;
+  netSend(Object.assign({ t:'state' }, JSON.parse(snap))); }
+function netApplyState(g, ui, aiSides){ if(!isGuest()) return;
+  G=g; NET.aiSides=aiSides||{}; G.humanSide=NET.mySide; G.aiSide=NET.oppSide;   // pin perspective to THIS client
+  NET.status='connected';
+  if(G.over){ UI.screen='victory'; UI.victoryWhy=G.victoryWhy||UI.victoryWhy; render(); return; }
+  if(ui && G.active===NET.mySide) NET_UI_KEYS.forEach(k=>UI[k]=ui[k]);   // my turn → mirror my own interaction build-up
+  else { UI.src=null; UI.targeting=null; }                              // spectating → clear stale interaction
+  syncScreen();                                                         // screen is derived from G (+ my targeting), never the host's
+  render(); }
+// ---- guest → host action relay (host is the single source of truth; it echoes interaction UI back) ----
+function netSendAction(act,arg){ if(!isGuest()) return; netSend({ t:'act', act, arg }); }
+function netHostApplyRemote(msg){ if(!isHost() || !G || G.over) return;
+  if(G.active!==NET.oppSide) return;   // out-of-turn / spoofed input is ignored (the guest may act only on its turn)
+  _applyingRemote=true; try{ handle(msg.act, msg.arg); } finally{ _applyingRemote=false; } }
+// ---- top-level message dispatch (transport-agnostic) ----
+function netReceive(msg){ if(!msg || !NET) return;
+  switch(msg.t){
+    case 'state': netApplyState(msg.g, msg.ui, msg.ai); return;       // guest ← host
+    case 'act':   netHostApplyRemote(msg); return;                     // host ← guest
+    case 'chat':  netChatPush(false, msg.text); return;
+    case 'lobby': netLobbyReceive(msg); return;                        // setup handshake
+    case 'bye':   NET.left='peer'; netPeerGone('left'); return;
+  } }
+// ---- the online game proper: both rosters auto-deploy (online skips manual hero placement), then cycle 1 ----
+function newGameOnline(mySide, myChamps, oppSide, oppChamps){
+  const L=THEATER.light, D=THEATER.dark;
+  const lightChamps=(mySide===L)?myChamps:oppChamps, darkChamps=(mySide===L)?oppChamps:myChamps;
+  const worlds={};
+  WORLDS.forEach(w=>{ worlds[w.id]={ ...w, owner:w.start, fleets:w.garrison, champion:null,
+    barrier:null, valor:null, mindtrick:null, shield:null, dread:null, rage:null, illusion:null }; });
+  if(hasRule('deathStar')) WORLDS.forEach(w=>{ if(w.ds){ worlds[w.id].ds=true; worlds[w.id].hull=DEATHSTAR_HULL; } });
+  (THEATER.neutralGuards||[]).forEach(g=>{ if(worlds[g.world]) worlds[g.world].champion=mkChamp(g.kind,'neutral'); });
+  const mk=(side)=>({ side, influence:3, deck:buildDeck(side), hand:[], discard:[],
+    battlemed:false, foresight:false, legendUnlocked:false, fallenSith:0, champDieBuff:0, roster:[] });
+  G={ worlds, humanSide:mySide, aiSide:oppSide, firstSide:L,
+    players:{ jedi:mk('jedi'), sith:mk('sith') },
+    active:L, phase:0, cycle:1, turnSeq:0, pool:0, reinforced:{}, maneuvered:{},
+    combat:null, log:[], winner:null, over:false, aiLevel:1,
+    capOverride:null, baseRevealed:!hasRule('hiddenBase'), baseRelocated:false,
+    online:true, hotseat:false };
+  G.players[L].roster=lightChamps.slice(); G.players[D].roster=darkChamps.slice();
+  autoPlaceChampions(L, lightChamps); autoPlaceChampions(D, darkChamps);   // online auto-deploys both rosters
+  mandaInit(); drawToHand('jedi'); drawToHand('sith');
+  UI={ screen:'board', sel:capitalOf(mySide), src:null, moveN:1, targeting:null, forceSel:0, toast:null, mapZoom:1, mapPanX:0, mapPanY:0 };
+  logMsg(`<b class="g">Online campaign begins.</b> ${THEATER.name} — ${FAC[L].name} vs ${FAC[D].name}.`);
+  if(NET) NET._lastSent=null;
+  startTurn(L, true);   // render() inside ships the started game to the guest via the broadcast hook
+}
+// ---- lobby handshake (before G exists): host announces theater+side; guest drafts & readies; host starts ----
+function netLobbyReceive(msg){
+  if(msg.sub==='hello' && isGuest()){            // host → guest: the agreed theater + host's chosen side
+    loadTheater(msg.theater); NET.hostSide=msg.hostSide; NET.mySide=opp(msg.hostSide); NET.oppSide=msg.hostSide;
+    UI.mode='online'; UI.selSide=NET.mySide; UI.draft=[]; UI.screen='select'; render(); return; }
+  if(msg.sub==='ready' && isHost()){             // guest → host: the guest has drafted; store and start if we're set
+    NET.guestChamps=(msg.champs||[]).slice(); maybeStartOnline(); return; }
+}
+function maybeStartOnline(){ if(!isHost() || G) return;
+  if(!(UI.draft&&UI.draft.length===2) || !(NET.guestChamps&&NET.guestChamps.length===2)) return;
+  newGameOnline(NET.mySide, UI.draft.slice(), NET.oppSide, NET.guestChamps.slice()); }
+// ---- chat ----
+function netChatPush(mine, text){ if(!NET) return; text=(''+text).slice(0,200); if(!text.trim()) return;
+  (NET.chat=NET.chat||[]).push({ mine, text, ts:Date.now() }); if(NET.chat.length>60) NET.chat.shift(); render(); }
+function netSendChat(text){ if(!isOnline()) return; netChatPush(true, text); netSend({ t:'chat', text }); }
+// ---- disconnect → reconnect grace → AI takeover ----
+function netPeerGone(reason){ if(!NET || NET.over) return;
+  if(reason==='left' || NET.left){ /* intentional: fall through to takeover/leave */ }
+  if(NET.aiSides && NET.aiSides[NET.oppSide]) return;   // already taken over
+  NET.status='dropped'; NET.droppedReason=reason;
+  if(NET.graceTimer) clearTimeout(NET.graceTimer);
+  NET.graceTimer=setTimeout(()=>netTakeover(), NET_GRACE_MS);
+  if(isGuest() && !NET.left) netTryReconnect();
+  render(); }
+function netTryReconnect(){ if(!isGuest() || NET.status==='connected') return;
+  try{ if(NET.peer && !NET.peer.destroyed){ const conn=NET.peer.connect(NET_PREFIX+NET.roomCode,{reliable:true}); netBindConn(conn); } }catch(e){}
+}
+function netTakeover(){ if(!NET) return; if(NET.graceTimer){ clearTimeout(NET.graceTimer); NET.graceTimer=null; }
+  if(NET.status==='connected') return;   // peer came back in time
+  NET.aiSides=NET.aiSides||{}; NET.aiSides[NET.oppSide]=true;   // the absent side is now the AI's
+  if(isGuest()){ NET.role='host'; NET.send=()=>{}; }            // guest promotes to sole authority (it has full G + engine)
+  NET.status='ai';
+  if(G && !G.over){ if(G.active===G.aiSide) scheduleAI(); render(); }
+  else render(); }
+function netLeave(){ if(NET){ try{ netSend({t:'bye'}); }catch(e){} NET.left='me';
+    try{ if(NET.conn) NET.conn.close(); }catch(e){} try{ if(NET.peer) NET.peer.destroy(); }catch(e){}
+    if(NET.graceTimer) clearTimeout(NET.graceTimer); }
+  NET=null; if(aiTimer){ clearTimeout(aiTimer); aiTimer=null; } G=null; UI={ screen:'title' }; render(); }
+// ---- transport: WebRTC via PeerJS, lazy-loaded only when going online (base game stays offline-capable) ----
+const NET_PREFIX='gconq-';
+function netRoomCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<5;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
+function netLoadPeerJS(cb){ if(typeof window!=='undefined' && window.Peer) return cb(null);
+  if(typeof document==='undefined' || !document.createElement || !document.head) return cb(new Error('no DOM'));
+  const s=document.createElement('script'); s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+  s.onload=()=>cb(window.Peer?null:new Error('PeerJS failed to load'));
+  s.onerror=()=>cb(new Error('Could not reach the signaling broker (are you offline?)'));
+  document.head.appendChild(s); }
+function netBindConn(conn){ NET.conn=conn; NET.send=(m)=>{ try{ if(conn.open) conn.send(m); }catch(e){} };
+  conn.on('open',()=>{ if(NET.graceTimer){ clearTimeout(NET.graceTimer); NET.graceTimer=null; }
+    NET.left=null; NET.status='connected';
+    if(isHost()){ netSend({ t:'lobby', sub:'hello', theater:THEATER.id, hostSide:NET.mySide });
+      if(G){ NET._lastSent=null; netBroadcastState(); } }   // a reconnecting guest gets the live state resent
+    render(); });
+  conn.on('data',d=>netReceive(d));
+  conn.on('close',()=>netPeerGone('closed'));
+  conn.on('error',()=>netPeerGone('error')); }
+function netHostCreate(){ NET={ role:'host', status:'loading', chat:[], aiSides:{}, roomCode:netRoomCode(),
+    mySide:UI.selSide||THEATER.light, oppSide:opp(UI.selSide||THEATER.light) };
+  UI.screen='online'; render();
+  netLoadPeerJS(err=>{ if(!NET) return; if(err){ NET.status='error'; NET.error=err.message; render(); return; }
+    const peer=new window.Peer(NET_PREFIX+NET.roomCode); NET.peer=peer;
+    peer.on('open',()=>{ if(NET){ NET.status='waiting'; render(); } });
+    peer.on('connection',conn=>{ if(NET) netBindConn(conn); });
+    peer.on('error',e=>{ if(!NET) return; NET.status='error';
+      NET.error=(e&&e.type==='unavailable-id')?'That room code is taken — leave and try again.':((e&&e.message)||'connection error'); render(); }); }); }
+function netJoinCreate(code){ code=(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5); if(code.length<3) return;
+  NET={ role:'guest', status:'loading', chat:[], aiSides:{}, roomCode:code };
+  UI.screen='online'; render();
+  netLoadPeerJS(err=>{ if(!NET) return; if(err){ NET.status='error'; NET.error=err.message; render(); return; }
+    const peer=new window.Peer(); NET.peer=peer;
+    peer.on('open',()=>{ if(!NET) return; NET.status='connecting'; const conn=peer.connect(NET_PREFIX+code,{reliable:true}); netBindConn(conn); render(); });
+    peer.on('error',e=>{ if(!NET) return; NET.status='error'; NET.error=(e&&e.message)||'Could not find that room.'; render(); }); }); }
+
 /* ============================ RENDER ====================================== */
 const $app=document.getElementById('app');
 function toast(m){ UI.toast=m; setTimeout(()=>{ if(UI.toast===m){ UI.toast=null; render(); } },2200); }
 function render(){
+  // §13 — preserve scroll position across the full innerHTML rebuild. Any element tagged
+  // data-keepscroll is its own scroll container; rebuilding it would otherwise snap it back to the
+  // top (e.g. tapping +/- on a scrolled reinforce list, or clicking a planet with the rails scrolled).
+  const _ks={}; if(typeof document!=='undefined' && document.querySelectorAll) document.querySelectorAll('[data-keepscroll]').forEach(el=>{ if(el.scrollTop) _ks[el.getAttribute('data-keepscroll')]=el.scrollTop; });
   switch(UI.screen){
     case 'title':   $app.innerHTML=viewTitle(); break;
     case 'theater': $app.innerHTML=viewTheater(); break;
+    case 'online':  $app.innerHTML=viewOnline(); break;
     case 'handoff': $app.innerHTML=viewHandoff(); break;
     case 'select':  $app.innerHTML=viewSelect(); break;
     case 'deployheroes': $app.innerHTML=viewDeployHeroes(); break;
@@ -1610,7 +1936,12 @@ function render(){
     case 'victory': $app.innerHTML=viewVictory(); break;
     default:        $app.innerHTML=viewBoard();
   }
+  // §17 — online HUD (status + chat) overlays every gameplay screen, so chat/status are always reachable
+  if(isOnline() && G && /^(board|deploy|force|combat)$/.test(UI.screen) && typeof $app.innerHTML==='string')
+    $app.innerHTML += onlineHUD() + (UI.showChat?chatOverlay():'');
+  if($app && $app.querySelector) for(const key in _ks){ const el=$app.querySelector(`[data-keepscroll="${key}"]`); if(el) el.scrollTop=_ks[key]; }
   saveGame();   // §12a — autosave the live campaign after every state mutation (no-op headless / when over)
+  if(isHost()) netBroadcastState();   // §17 — host ships the authoritative state to the guest after every render (deduped on no-change)
 }
 
 /* ---- title ---- */
@@ -1622,13 +1953,15 @@ function viewTitle(){
       <h1 class="glow-cy" style="font-size:62px;font-weight:700;letter-spacing:.14em;margin:14px 0 4px">GALAXY CONQUEST</h1>
       <div style="font-size:15px;color:var(--ink-dim);max-width:560px;margin:0 auto 30px;line-height:1.7">
         A two-front holowar for the galaxy. <span class="t-jedi">Jedi Order</span> against the <span class="t-sith">Sith Empire</span>.
-        Reinforce, assault, and maneuver across the hyperlanes and bend the Force. One path to victory — storm the enemy throneworld; hold the <span style="color:var(--gold)">Ruusan</span> nexus to out-influence them on the way.
+        Reinforce, assault, and maneuver across the hyperlanes and bend the Force. One path to victory — storm the enemy throneworld; hold the contested <span style="color:var(--gold)">Force nexus</span> at the map's heart to out-influence them on the way.
       </div>
-      <div style="display:flex;gap:12px;justify-content:center;align-items:center">
+      <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap">
         ${hasResumableSave()?`<button class="btn primary jedi" data-act="resume" style="font-size:15px;padding:14px 30px">↻ Resume Campaign</button>
           <button class="btn" data-act="gotheater" style="font-size:14px;padding:13px 26px">New War →</button>`
           :`<button class="btn primary jedi" data-act="gotheater" style="font-size:15px;padding:14px 30px">Enter the War →</button>`}
+        <button class="btn" data-act="goonline" style="font-size:14px;padding:13px 24px">🌐 Play Online</button>
       </div>
+      <div style="font-size:11px;color:var(--ink-faint);margin-top:12px">Single-player vs AI · local Hotseat · or Online 2-player over WebRTC</div>
     </div>
   </div>`;
 }
@@ -1699,18 +2032,17 @@ function theaterCardHTML(m, selected){
     </div></button>`;
 }
 function viewTheater(){
-  const pick=UI.theater||'galaxy'; const sel=MAPS[pick]; const ready=sel && sel.state!=='soon';
+  const pick=UI.theater||null; const sel=pick?MAPS[pick]:null; const ready=!!(sel && sel.state!=='soon');   // no default — the player must actively choose a theater
   return `<div class="starfield"></div><div class="holo-grid"></div><div class="scanlines"></div>
   <div style="position:absolute;inset:0;display:flex;flex-direction:column">
     <div style="text-align:center;padding-top:30px">
       <div class="eyebrow" style="letter-spacing:.42em;color:var(--ink-faint)">Galaxy Conquest · Theater Select</div>
-      <h1 class="glow-cy" style="font-size:33px;font-weight:700;letter-spacing:.14em;margin:8px 0 0">CHOOSE YOUR WAR</h1>
-      <div style="font-size:12.5px;color:var(--ink-dim);margin-top:6px">Each theater is its own map, era, and roster — same engine beneath.</div></div>
-    <div class="gridcols-4" style="flex:1;display:grid;grid-template-columns:repeat(${THEATER_ORDER.length},1fr);gap:14px;padding:26px 36px;align-content:center">
+      <h1 class="glow-cy" style="font-size:33px;font-weight:700;letter-spacing:.14em;margin:8px 0 0">CHOOSE YOUR WAR</h1></div>
+    <div class="gridcols-4" style="flex:1;display:grid;grid-template-columns:repeat(${Math.min(3,THEATER_ORDER.length)},1fr);gap:14px;padding:20px 36px;align-content:center;overflow:auto">
       ${THEATER_ORDER.map(id=>theaterCardHTML(MAPS[id], id===pick)).join('')}</div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 56px 26px;border-top:1px solid var(--line);background:linear-gradient(0deg,rgba(6,12,21,.8),transparent)">
       <button class="btn" data-act="backtitle">‹ Back</button>
-      <span style="font-size:11px;color:var(--ink-faint)">Selected · <span style="color:var(--holo)">${sel?sel.name:'—'}</span>${ready?'':' <span style="color:var(--ink-faint)">(coming soon)</span>'}</span>
+      <span style="font-size:11px;color:var(--ink-faint)">${sel?`Selected · <span style="color:var(--holo)">${sel.name}</span>${ready?'':' <span style="color:var(--ink-faint)">(coming soon)</span>'}`:'Select a theater to continue'}</span>
       <button class="btn primary jedi" data-act="confirmtheater" ${ready?'':'disabled'} style="font-size:13.5px;padding:13px 30px">Deploy to Theater →</button>
     </div>
   </div>`;
@@ -1723,14 +2055,75 @@ function crestHTML(side){ const k=sc(side);
     <div style="position:absolute;inset:10px;border:1px solid ${k.c};transform:rotate(45deg);opacity:.5"></div>
     <div style="position:absolute;left:50%;top:14%;bottom:14%;width:3px;transform:translateX(-50%);background:linear-gradient(${k.g},${k.c});box-shadow:0 0 10px ${k.g};border-radius:2px"></div>
   </div>`; }
+function escapeHTML(s){ return (''+s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// §17 — online lobby / connection / waiting screen (UI.screen='online'); reads NET.status
+function viewOnline(){ const st=(NET&&NET.status)||'menu';
+  const wrap=(inner)=>`<div class="starfield"></div><div class="holo-grid"></div><div class="scanlines"></div>
+    <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;overflow:auto">
+      <div class="fade-in" style="width:min(560px,94vw)">${inner}</div></div>`;
+  const eyebrow=`<div class="eyebrow" style="letter-spacing:.4em;color:var(--ink-faint)">Galaxy Conquest · Online · peer-to-peer</div>`;
+  if(st==='menu') return wrap(`${eyebrow}
+    <h1 class="glow-cy" style="font-size:30px;font-weight:700;letter-spacing:.1em;margin:10px 0 6px">PLAY ONLINE</h1>
+    <p style="font-size:12px;color:var(--ink-dim);line-height:1.6;margin-bottom:22px">Direct browser-to-browser over WebRTC — no sign-up, no server. One of you hosts and shares a 5-letter room code; the other joins it. <span style="color:var(--ink)">Single-player vs AI and local hotseat are still on the title screen.</span></p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <button class="btn primary jedi" data-act="hostsetup" style="padding:14px;font-size:14px">⚑ Host a Game — get a room code</button>
+      <button class="btn primary sith" data-act="joinsetup" style="padding:14px;font-size:14px">→ Join a Game — enter a code</button>
+      <button class="btn" data-act="backtitle" style="padding:10px">‹ Back to title</button></div>`);
+  if(st==='entercode') return wrap(`${eyebrow}
+    <h1 class="glow-cy" style="font-size:26px;font-weight:700;letter-spacing:.1em;margin:10px 0 14px">JOIN A GAME</h1>
+    <div style="font-size:12px;color:var(--ink-dim);margin-bottom:12px">Enter the room code your opponent shared.</div>
+    <input data-codeinput="1" value="${escapeHTML(UI.codeDraft||'')}" maxlength="5" placeholder="ABCDE" autocomplete="off"
+      style="text-transform:uppercase;letter-spacing:.4em;text-align:center;font-size:26px;font-weight:700;width:240px;padding:12px;background:rgba(4,7,13,.85);border:1px solid var(--holo);color:var(--holo);font-family:var(--font-mono)"/>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:18px">
+      <button class="btn" data-act="goonline">‹ Back</button>
+      <button class="btn primary jedi" data-act="netjoinsubmit" ${((UI.codeDraft||'').length>=3)?'':'disabled'}>Connect →</button></div>`);
+  let title='Online', body='', showCode=false;
+  if(st==='loading'){ title='Linking…'; body='Loading the peer-to-peer connector…'; }
+  else if(st==='connecting'){ title='Connecting…'; body='Reaching the host over WebRTC…'; }
+  else if(st==='waiting'){ title='Room open'; body='Share this code with your opponent. The campaign starts the moment they join and draft their champions.'; showCode=true; }
+  else if(st==='waitstart'){ title='Ready ✓'; body='Waiting for the host to launch the campaign…'; }
+  else if(st==='error'){ title='Connection failed'; body=(NET&&NET.error)||'Something went wrong reaching the broker.'; }
+  else if(st==='dropped'){ title='Opponent disconnected'; body='Waiting for them to reconnect — the AI takes their side if they don’t return shortly.'; }
+  return wrap(`${eyebrow}
+    <h1 class="glow-cy" style="font-size:26px;font-weight:700;letter-spacing:.08em;margin:10px 0 8px">${title}</h1>
+    ${showCode?`<div class="tnum" style="font-size:54px;font-weight:700;letter-spacing:.22em;color:var(--gold);text-shadow:0 0 22px rgba(243,210,122,.45);margin:8px 0">${NET.roomCode}</div>`:''}
+    <p style="font-size:12.5px;color:var(--ink-dim);line-height:1.6;max-width:430px;margin:0 auto 16px">${body}</p>
+    ${(st==='waiting'||st==='waitstart'||st==='dropped')?chatBoxHTML():''}
+    <div style="margin-top:16px"><button class="btn" data-act="netleave">${st==='error'?'‹ Back':'✕ Leave'}</button></div>`);
+}
+function chatBoxHTML(){ const msgs=(NET&&NET.chat)||[];
+  const log=msgs.length?msgs.map(m=>`<div style="text-align:${m.mine?'right':'left'};margin:3px 0"><span style="display:inline-block;max-width:82%;padding:5px 10px;border-radius:8px;font-size:12px;line-height:1.4;background:${m.mine?'rgba(74,163,255,.18)':'rgba(255,255,255,.06)'};color:var(--ink)">${escapeHTML(m.text)}</span></div>`).join('')
+    :`<div style="color:var(--ink-faint);font-size:11px;text-align:center;padding:16px 0">No messages yet — say hi 👋</div>`;
+  return `<div class="panel" style="margin:0 auto;max-width:430px;text-align:left;padding:10px">
+    <div data-keepscroll="chatlog" style="max-height:150px;overflow:auto;margin-bottom:8px">${log}</div>
+    <div style="display:flex;gap:6px">
+      <input data-chatinput="1" value="${escapeHTML(UI.chatDraft||'')}" placeholder="Message…" maxlength="200" autocomplete="off"
+        style="flex:1;padding:8px 10px;background:rgba(4,7,13,.85);border:1px solid var(--line-strong);color:var(--ink);font-size:12px"/>
+      <button class="btn primary jedi" data-act="netchatsend" style="padding:8px 14px">Send</button></div></div>`;
+}
+// §17 — in-game online HUD (status + chat) and the chat overlay
+function onlineHUD(){ const st=NET.status, n=(NET.chat||[]).length;
+  const txt = st==='ai' ? `⚠ AI controls ${FAC[NET.oppSide].short}` : st==='dropped' ? '⚠ Opponent reconnecting…' : `● Live vs ${FAC[NET.oppSide].short}`;
+  const clr = (st==='ai'||st==='dropped') ? 'var(--sith-glow)' : 'var(--jedi-glow)';
+  return `<div style="position:absolute;top:66px;right:12px;z-index:30;display:flex;align-items:center;gap:8px">
+    <span style="font-size:10px;letter-spacing:.08em;color:${clr};background:rgba(4,7,13,.82);border:1px solid var(--line);padding:4px 9px">${txt}</span>
+    <button class="btn" data-act="netchattoggle" style="padding:5px 11px;font-size:13px;position:relative">💬${n?`<span style="position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;border-radius:8px;background:var(--gold);color:#04070d;font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px">${n}</span>`:''}</button>
+  </div>`; }
+function chatOverlay(){ return `<div class="onboard-wrap" data-act="netchattoggle" style="align-items:flex-end;justify-content:flex-end;padding:0;background:rgba(2,5,10,.45)">
+  <div class="panel brackets" data-act="noop" style="width:min(370px,94vw);margin:0 14px 92px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="eyebrow" style="color:var(--gold)">Chat · ${FAC[NET.mySide].short} ↔ ${FAC[NET.oppSide].short}</div>
+      <button class="btn" data-act="netchattoggle" style="padding:3px 9px;font-size:11px">✕</button></div>
+    ${chatBoxHTML()}</div></div>`; }
 function viewSelect(){
-  const mode=UI.mode||'ai', hot=(mode==='hotseat');                 // §14 — vs AI or two-player hotseat
+  const mode=UI.mode||'ai', hot=(mode==='hotseat'), online=(mode==='online'), guest=isGuest();   // §14/§17
   const side=UI.selSide||null; const draft=UI.draft||[];
   const lvl=(typeof UI.aiLevel==='number')?UI.aiLevel:1;
   const aiClr = side?opp(side):'jedi';
-  const modeToggle = `<div style="display:flex;justify-content:center;gap:8px;margin-top:14px">
-    <button class="btn ${!hot?'primary jedi':''}" data-act="setmode" data-arg="ai" style="padding:8px 18px;font-size:12px;${hot?'opacity:.6':''}">⚔ vs AI</button>
-    <button class="btn ${hot?'primary jedi':''}" data-act="setmode" data-arg="hotseat" style="padding:8px 18px;font-size:12px;${hot?'':'opacity:.6'}">👥 Hotseat · 2 Players</button></div>`;
+  const mbtn=(m,lbl)=>`<button class="btn ${mode===m?'primary jedi':''}" data-act="setmode" data-arg="${m}" style="padding:8px 16px;font-size:12px;${mode===m?'':'opacity:.6'}">${lbl}</button>`;
+  const modeToggle = guest
+    ? `<div style="margin-top:14px"><span class="eyebrow" style="color:var(--holo);border:1px solid var(--holo);padding:6px 14px">🌐 Online — you are <b style="color:${sc(side||'jedi').c}">${FAC[side||'jedi'].name}</b> · drafting your champions</span></div>`
+    : `<div style="display:flex;justify-content:center;gap:8px;margin-top:14px">${mbtn('ai','⚔ vs AI')}${mbtn('hotseat','👥 Hotseat')}${mbtn('online','🌐 Online')}</div>`;
   const mandaOn=(UI.mandaRaids!==false);   // §16 — default On when the theater declares the mandalore hook
   const mandaToggle = hasRule('mandalore') ? `<div style="display:flex;justify-content:center;align-items:center;gap:9px;margin-top:9px">
       <span class="eyebrow" style="color:var(--manda)">Mandalore raids</span>
@@ -1767,9 +2160,9 @@ function viewSelect(){
       ${modeToggle}
       ${mandaToggle}
     </div>
-    <div style="display:flex;justify-content:center;align-items:stretch;margin:18px 0 8px">
+    <div class="setup-tabs" style="display:flex;justify-content:center;align-items:stretch;margin:18px 0 8px">
       ${tab('jedi')}
-      <div style="width:64px;display:grid;place-items:center;position:relative">
+      <div class="vs-sep" style="width:64px;display:grid;place-items:center;position:relative">
         <div style="position:absolute;height:70%;width:1px;background:linear-gradient(var(--jedi),var(--sith));opacity:.5"></div>
         <div style="width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line-strong);background:rgba(4,7,13,.9);font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--ink-dim)">VS</div>
       </div>
@@ -1789,9 +2182,13 @@ function viewSelect(){
         : `<div style="text-align:center;color:var(--ink-dim);font-size:13px;padding:40px 0">Select a faction above to draft its champions.</div>` }
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 48px 24px;border-top:1px solid var(--line);background:linear-gradient(0deg,rgba(6,12,21,.8),transparent)">
-      <button class="btn" data-act="gotheater" style="flex:none">‹ Theater</button>
-      ${hot?hsStage:diffSel}
-      <button class="btn primary ${side||'jedi'}" data-act="begin" ${ready?'':'disabled'} style="flex:none;font-size:13.5px;padding:13px 30px">${hot?(UI.draftLight?'Begin Hotseat →':`${FAC[side||'jedi'].short} Ready · Pass →`):'Commit · Begin Campaign →'}</button>
+      ${online ? `<button class="btn" data-act="${guest?'netleave':'goonline'}" style="flex:none">${guest?'✕ Leave':'‹ Online'}</button>`
+               : `<button class="btn" data-act="gotheater" style="flex:none">‹ Theater</button>`}
+      ${online ? `<div style="font-size:11px;color:var(--ink-dim);text-align:center;max-width:360px">${guest?`Draft <b style="color:${sc(side||'jedi').c}">${draft.length}/2</b> champions, then signal Ready — the host launches when both sides are set.`:`Pick your side &amp; draft <b>${draft.length}/2</b>, then open a room and share the code. <span style="color:var(--ink-faint)">(No AI — both sides are human.)</span>`}</div>`
+               : (hot?hsStage:diffSel)}
+      ${online
+        ? `<button class="btn primary ${side||'jedi'}" data-act="${guest?'netready':'netcreate'}" ${ready?'':'disabled'} style="flex:none;font-size:13.5px;padding:13px 30px">${guest?'Ready ✓ →':'Open Room →'}</button>`
+        : `<button class="btn primary ${side||'jedi'}" data-act="begin" ${ready?'':'disabled'} style="flex:none;font-size:13.5px;padding:13px 30px">${hot?(UI.draftLight?'Begin Hotseat →':`${FAC[side||'jedi'].short} Ready · Pass →`):'Commit · Begin Campaign →'}</button>`}
     </div>
   </div>`;
 }
@@ -1926,7 +2323,8 @@ function planetHTML(w){ const W=G.worlds[w.id]; const size=14+W.fleets*1.4;
   const f=FAC[W.owner]; const champ=W.champion; const auras=auraList(w.id);
   const cc=champ?(champ.side==='jedi'?'var(--jedi-glow)':champ.side==='sith'?'var(--sith-glow)':'var(--manda-glow)'):'';
   const capSide=capitalSideOf(w.id);   // dynamic — the Hidden Base can relocate
-  return `<button class="planet ${extra}" data-act="world" data-arg="${w.id}" style="left:${w.x}%;top:${w.y}%">
+  const keep=(w.nexus||capSide||selB)?' keeplabel':'';   // §10f — these labels stay visible even at overview zoom
+  return `<button class="planet ${extra}${keep}" data-act="world" data-arg="${w.id}" style="left:${w.x}%;top:${w.y}%">
     <div style="position:relative;width:${size}px;height:${size}px">
       ${strategicMark(w.id)}
       ${w.nexus?`<div class="beacon-aura"></div><div class="beacon-ring"></div><div class="beacon-dash"></div>`:''}
@@ -1944,17 +2342,54 @@ function planetHTML(w){ const W=G.worlds[w.id]; const size=14+W.fleets*1.4;
     </div>
     <div class="pname" style="top:${size+6}px;${w.nexus?'color:var(--gold);font-weight:700;text-shadow:0 0 8px rgba(243,210,122,.5)':selB?'color:var(--ink)':''}">${w.name}</div>
   </button>`; }
+// §10f — galaxy-disc backdrop for the large Clone Wars board: an elliptical disc glow, a bright Deep-Core,
+// and two faint canted rings that read as spiral structure. Lives inside the transformed layer so it pans/zooms.
+function galaxyDiscHTML(){
+  return `<div class="galaxydisc" style="position:absolute;inset:0;pointer-events:none;overflow:hidden">
+    <div style="position:absolute;left:50%;top:50%;width:108%;height:84%;transform:translate(-50%,-50%) rotate(-10deg);border-radius:50%;background:radial-gradient(ellipse 58% 58% at 47% 50%, rgba(120,175,255,.14), rgba(110,150,225,.05) 45%, transparent 72%);filter:blur(1px)"></div>
+    <div style="position:absolute;left:50%;top:50%;width:94%;height:62%;transform:translate(-50%,-50%) rotate(15deg);border-radius:50%;border:1px solid rgba(120,175,255,.06)"></div>
+    <div style="position:absolute;left:50%;top:50%;width:76%;height:50%;transform:translate(-50%,-50%) rotate(-24deg);border-radius:50%;border:1px solid rgba(243,210,122,.05)"></div>
+    <div style="position:absolute;left:45%;top:50%;width:30%;height:44%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle, rgba(255,244,214,.22), rgba(243,210,122,.08) 48%, transparent 76%);filter:blur(2px)"></div>
+  </div>`;
+}
+// camera state lives on UI (mapZoom/mapPanX/mapPanY); boardMap re-emits the transform every render, and
+// applyMapTransform updates it live during drag/wheel/pinch without a full rebuild.
+function _q(sel){ return (typeof document!=='undefined' && document.querySelector) ? document.querySelector(sel) : null; }   // headless-safe query
+function mapEl(){ return _q('.center .mapwrap'); }
+function applyMapTransform(){ const el=mapEl(); if(!el) return;
+  el.style.transform=`translate(${UI.mapPanX||0}px,${UI.mapPanY||0}px) scale(${UI.mapZoom||1})`;
+  el.classList.toggle('nolabels', (UI.mapZoom||1) < MAP.LABEL_ZOOM); }
+function clampMapPan(){ const c=_q('.center.pannable'); if(!c) return; const r=c.getBoundingClientRect();
+  const z=UI.mapZoom||1, mw=r.width*z, mh=r.height*z, margin=Math.min(r.width,r.height)*0.22;
+  UI.mapPanX=clamp(UI.mapPanX||0, Math.min(0, r.width-mw)-margin, margin);
+  UI.mapPanY=clamp(UI.mapPanY||0, Math.min(0, r.height-mh)-margin, margin); }
+function mapZoomAbout(nz, fx, fy){ const oz=UI.mapZoom||1; nz=clamp(nz, MAP.ZMIN, MAP.ZMAX);   // keep the world point under (fx,fy) fixed
+  UI.mapPanX = fx - (fx-(UI.mapPanX||0))*(nz/oz); UI.mapPanY = fy - (fy-(UI.mapPanY||0))*(nz/oz);
+  UI.mapZoom = nz; clampMapPan(); }
+function mapZoomBtn(factor){ const c=_q('.center.pannable'); const r=c?c.getBoundingClientRect():{width:600,height:400};
+  mapZoomAbout((UI.mapZoom||1)*factor, r.width/2, r.height/2); applyMapTransform(); }
+function resetMapView(){ UI.mapZoom=1; UI.mapPanX=0; UI.mapPanY=0; applyMapTransform(); }
 function boardMap(){
+  const zoomable=!!(THEATER&&THEATER.zoomable);
   const lanes=`<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
     ${LANES.map(([a,b])=>{ const A=byId[a],B=byId[b],con=A.nexus||B.nexus;
       return `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${con?'rgba(243,210,122,.5)':'rgba(95,220,255,.26)'}" stroke-width="0.18" ${con?'stroke-dasharray="1.2 0.8"':''} vector-effect="non-scaling-stroke"/>`; }).join('')}</svg>`;
-  return `<div class="center"><div class="scanlines"></div>
-    <div style="position:absolute;left:2%;top:20%;width:34%;height:70%;background:radial-gradient(circle,rgba(74,163,255,.10),transparent 70%);pointer-events:none"></div>
-    <div style="position:absolute;right:0;top:10%;width:36%;height:80%;background:radial-gradient(circle,rgba(255,52,71,.10),transparent 70%);pointer-events:none"></div>
-    ${lanes}
-    <div class="zonelabel t-jedi" style="left:6%">${(THEATER.zoneLabels&&THEATER.zoneLabels.light)||''}</div>
-    <div class="zonelabel t-sith" style="left:80%">${(THEATER.zoneLabels&&THEATER.zoneLabels.dark)||''}</div>
-    ${WORLDS.map(planetHTML).join('')}
+  const glows = THEATER.galaxyDisc ? galaxyDiscHTML()
+    : `<div style="position:absolute;left:2%;top:20%;width:34%;height:70%;background:radial-gradient(circle,rgba(74,163,255,.10),transparent 70%);pointer-events:none"></div>
+       <div style="position:absolute;right:0;top:10%;width:36%;height:80%;background:radial-gradient(circle,rgba(255,52,71,.10),transparent 70%);pointer-events:none"></div>`;
+  const content = `${glows}${lanes}${WORLDS.map(planetHTML).join('')}`;
+  const labels = `<div class="zonelabel t-jedi" style="left:6%">${(THEATER.zoneLabels&&THEATER.zoneLabels.light)||''}</div>
+    <div class="zonelabel t-sith" style="left:80%">${(THEATER.zoneLabels&&THEATER.zoneLabels.dark)||''}</div>`;
+  if(!zoomable) return `<div class="center"><div class="scanlines"></div>${content}${labels}</div>`;
+  const z=UI.mapZoom||1, px=UI.mapPanX||0, py=UI.mapPanY||0;
+  return `<div class="center pannable"><div class="scanlines"></div>
+    <div class="mapwrap${z<MAP.LABEL_ZOOM?' nolabels':''}" style="transform:translate(${px}px,${py}px) scale(${z})">${content}</div>
+    ${labels}
+    <div class="mapzoom">
+      <button class="zbtn" data-act="zoomin">＋</button>
+      <button class="zbtn" data-act="zoomout">−</button>
+      <button class="zbtn" data-act="zoomreset" style="font-size:13px" title="Reset view">⤢</button></div>
+    <div class="maphint">Drag to pan · scroll or ± to zoom</div>
   </div>`; }
 // §6.1 — one-time field guide (persisted so it only auto-opens once); the ? button reopens it
 function onboardSeen(markSeen){ try{ if(typeof localStorage==='undefined') return false;
@@ -1985,6 +2420,7 @@ function onboardOverlay(){ const lg=CHAMPIONS[LEGEND_OF[G.humanSide]];
         <button class="btn primary ${G.humanSide}" data-act="dismissonboard">Begin the campaign →</button></div>
     </div></div>`; }
 function viewBoard(){
+  if(!G.worlds[UI.sel]) UI.sel = G.worlds[capitalOf(G.humanSide)] ? capitalOf(G.humanSide) : WORLDS[0].id;   // §17 — the spectating online guest may have no selection yet; keep the dossier valid
   return `<div class="starfield"></div><div class="holo-grid"></div>
   ${topbar()}${leftPanel()}${rightPanel()}
   ${boardMap()}
@@ -2036,7 +2472,7 @@ function viewDeployHeroes(){ const me=G.deploySide, k=sc(me), f=FAC[me]; const q
         <div style="width:8px;height:8px;border-radius:50%;background:${f.color};box-shadow:0 0 8px ${f.color}"></div>
         <span style="font-size:12px;letter-spacing:.12em;color:${f.glow};font-weight:600">${f.name.toUpperCase()}</span></div></div></div>
   ${leftPanel()}
-  <aside class="aside right"><div class="eyebrow">Deploy Champions <span style="color:var(--ink-faint)">· before the campaign begins</span></div>
+  <aside class="aside right" data-keepscroll="aside-right"><div class="eyebrow">Deploy Champions <span style="color:var(--ink-faint)">· before the campaign begins</span></div>
     <div style="margin-top:10px">${panel}</div></aside>
   ${boardMap()}
   ${UI.toast?`<div class="toast">${UI.toast}</div>`:''}`; }
@@ -2059,9 +2495,9 @@ function legendMeterHTML(side){ const pl=P(side); const k=sc(side); const lg=CHA
     <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.06);border:1px solid var(--line);overflow:hidden">
       <div style="width:${pct}%;height:100%;border-radius:3px;background:linear-gradient(90deg,${k.c},var(--gold));box-shadow:0 0 8px var(--gold)"></div></div>
     <div style="font-size:9px;color:${can?'var(--gold)':'var(--ink-faint)'};margin-top:6px;line-height:1.4">${can?'★ ':''}${nudge}</div></div>`; }
-function leftPanel(){ const human=G.humanSide, f=FAC[human], pl=P(human);
+function leftPanel(){ const human=G.humanSide, f=FAC[human], pl=P(human);   // §13 — keepscroll: rebuilt every action, must not snap to top
   const w=worldsOf(human), fleets=w.reduce((s,x)=>s+x.fleets,0), champs=livingChampions(human);
-  return `<aside class="aside left">
+  return `<aside class="aside left" data-keepscroll="aside-left">
     <div><div class="eyebrow" style="color:${f.color}">${human==='jedi'?'Light Side':'Dark Side'} · You</div>
       <div class="${sc(human).glow}" style="font-size:19px;font-weight:700;margin-top:3px">${f.name}</div></div>
     <div class="divider"></div>
@@ -2138,7 +2574,7 @@ function rightPanel(){ const wid=UI.sel, W=G.worlds[wid], w=byId[wid], f=FAC[W.o
       } else action=`<div style="font-size:12px;color:var(--ink-dim)">Pick a world you own (2+ fleets) bordering an enemy or neutral world.</div>`;
     }
   } else action=`<div style="font-size:12px;color:var(--ink-dim)">The ${FAC[G.aiSide].short} are acting…</div>`;
-  return `<aside class="aside right">
+  return `<aside class="aside right" data-keepscroll="aside-right">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div class="eyebrow">World Dossier</div>${w.nexus?`<span class="chip" style="color:var(--gold);border-color:var(--gold)">◈ Force Nexus</span>`:''}</div>
     <div class="panel brackets" style="padding:14px;position:relative;overflow:hidden">
@@ -2150,7 +2586,7 @@ function rightPanel(){ const wid=UI.sel, W=G.worlds[wid], w=byId[wid], f=FAC[W.o
         ${w.capital?`<span class="chip" style="color:var(--gold);border-color:var(--gold)">★ Capital</span>`:''}</div></div>
     <div>${statRow('Garrison', W.fleets, f.color)}<div class="divider"></div>${statRow('Champion', champ?1:0,'var(--gold)')}<div class="divider"></div>${statRow('Hyperlanes', ADJ[wid].length)}</div>
     ${w.nexus?`<div class="panel" style="padding:12px;border-color:var(--gold);background:rgba(243,210,122,.06)">
-      <div class="eyebrow" style="font-size:8px;color:var(--gold);margin-bottom:6px">Valley of the Jedi · Force Nexus</div>
+      <div class="eyebrow" style="font-size:8px;color:var(--gold);margin-bottom:6px">${w.name} · Force Nexus</div>
       <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink)"><span style="color:var(--gold);font-size:13px">◈</span> +2 Holocron Influence each cycle</div>
       <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink);margin-top:5px"><span style="color:var(--gold);font-size:13px">✦</span> Champions fighting here roll +1</div></div>`:''}
     ${ci?`<div class="panel" style="padding:11px">
@@ -2219,7 +2655,7 @@ function viewDeploy(){ const me=G.active, k=sc(me); const owned=worldsOf(me);
       </div></div>`; };
   const champ=fp.champion?CHAMPIONS[fp.champion.kind]:null;
   return `<div class="starfield"></div><div class="holo-grid"></div><div class="scanlines"></div>
-  <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+  <div data-keepscroll="deploy-root" style="position:absolute;inset:0;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 30px 0">
       <div><div class="eyebrow" style="color:${k.c}">Phase 01 · Reinforce · ${me===G.humanSide?'You':FAC[me].short}</div>
         <h1 style="font-size:26px;font-weight:700;letter-spacing:.08em;margin:4px 0 0">Deploy the Fleet</h1></div>
@@ -2231,7 +2667,7 @@ function viewDeploy(){ const me=G.active, k=sc(me); const owned=worldsOf(me);
     <div class="gridcols-main" style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 380px;gap:22px;padding:22px 30px 0">
       <div style="display:flex;flex-direction:column;min-height:0">
         <div class="eyebrow" style="margin-bottom:10px">Held Worlds · allocate reinforcements</div>
-        <div style="display:flex;flex-direction:column;gap:10px;overflow:auto;flex:1;padding-right:4px">${owned.map(row).join('')}</div>
+        <div data-keepscroll="deploy-list" style="display:flex;flex-direction:column;gap:10px;overflow:auto;flex:1;padding-right:4px">${owned.map(row).join('')}</div>
         <div class="rfoot" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 0 22px">
           <div style="display:flex;gap:10px">${undoBtn()}<button class="btn" data-act="autodist">Auto-Distribute</button></div>
           <button class="btn primary ${k.cls}" data-act="confirmdeploy" ${remaining===0?'':'disabled'}>Confirm Deployment →</button>
@@ -2281,6 +2717,23 @@ function champDieHTML(v,side,bonus){ return `<div style="position:relative">${di
   <div class="tnum" style="position:absolute;top:-7px;right:-7px;padding:0 4px;height:15px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;background:var(--gold);box-shadow:0 0 8px var(--gold)">+${bonus}</div></div>`; }
 function combatSide(role){ const c=G.combat; const isAtk=role==='a';
   const src=G.worlds[c.fromId], tgt=G.worlds[c.toId];
+  // Once the world is taken, the defender column previews YOUR new holding — your colour and the fleets
+  // you're moving in (c.moveN, updates live with ±) — instead of the defeated owner. Fixes captured troops
+  // rendering in the wrong colour, most visibly a neutral world (which otherwise falls back to Sith red).
+  if(!isAtk && c.captured){
+    const wside=c.atk, wk=sc(wside), wf=FAC[wside];
+    const advChamp=c.advancing && src.champion ? CHAMPIONS[src.champion.kind] : null;
+    return `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:13px;flex:1;text-align:right">
+      <div><div class="eyebrow" style="color:${wf.color}">Captured · ${wf.short}</div>
+        <div class="${wk.glow}" style="font-size:23px;font-weight:700;letter-spacing:.03em">${wf.name}</div></div>
+      <div class="panel brackets cwide" style="width:288px;padding:12px 14px;border:1px solid ${wk.c};box-shadow:0 0 18px ${wside==='jedi'?'rgba(74,163,255,.18)':'rgba(255,52,71,.18)'}">
+        <div class="eyebrow" style="font-size:7.5px;color:var(--gold)">✓ ${tgt.name} secured</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-direction:row-reverse">
+          <div class="tnum" style="font-size:24px;font-weight:700;color:${wf.color}">${c.moveN}</div>${combatPips(c.moveN,wside)}</div>
+        <div class="eyebrow" style="font-size:7px;color:var(--ink-faint);margin-top:7px;text-align:right">${c.moveN===1?'fleet':'fleets'} stationed${advChamp?` · ${advChamp.name} advances`:''}</div>
+      </div>
+    </div>`;
+  }
   const side=isAtk?c.atk:c.def; const W=isAtk?src:tgt;
   const useFac=(side==='jedi'||side==='sith')?side:'sith'; const k=sc(useFac); const f=FAC[side];
   const champ=isAtk?(src.champion&&src.champion.side===c.atk?src.champion:null):tgt.champion;
@@ -2356,15 +2809,23 @@ function viewCombat(){ const c=G.combat; if(!c) return viewBoard();
   let controls='';
   if(c.atk===G.humanSide){
     if(c.captured){
+      // §4e — the surviving attacking champion may advance into the conquest or hold the source. The player
+      // chooses, EXCEPT when the source's last fleet is committed (overextend): a champion can't garrison a
+      // 0-fleet world alone, so it must advance with the line.
+      const advChamp=(src.champion && src.champion.side===c.atk) ? CHAMPIONS[src.champion.kind] : null;
+      const advToggle=(advChamp && !c.overextend)
+        ? `<button class="btn ${c.advancing?'gold':''}" data-act="toggleadvance">✦ ${advChamp.name} ${c.advancing?'advances ✓':'holds'}</button>` : '';
+      const champNote=advChamp?(c.advancing?` · ${advChamp.name} advances`:` · ${advChamp.name} holds ${src.name}`):'';
       if(c.moveMax>c.moveMin){ const leaving=src.fleets-c.moveN;
         controls=`<div style="text-align:right;line-height:1.25;margin-right:4px">
             <div class="eyebrow" style="font-size:7.5px;color:var(--gold)">Fleets to advance into ${tgt.name}</div>
-            <div style="font-size:9.5px;color:var(--ink-faint)">${leaving} hold${leaving===1?'s':''} ${src.name}${c.advancing?' · the champion advances':''}</div></div>
+            <div style="font-size:9.5px;color:var(--ink-faint)">${leaving} hold${leaving===1?'s':''} ${src.name}${champNote}</div></div>
           <button class="btn" data-act="capturemoven" data-arg="-1" ${c.moveN<=c.moveMin?'disabled':''}>−</button>
           <div class="tnum" style="font-size:22px;font-weight:700;min-width:28px;text-align:center">${c.moveN}</div>
           <button class="btn" data-act="capturemoven" data-arg="1" ${c.moveN>=c.moveMax?'disabled':''}>+</button>
+          ${advToggle}
           <button class="btn primary ${G.humanSide}" data-act="capture">Claim ${tgt.name} →</button>`;
-      } else controls=`<button class="btn primary ${G.humanSide}" data-act="capture">Claim ${tgt.name} →</button>`;
+      } else controls=`${c.overextend?`<span style="font-size:11px;color:var(--gold);margin-right:8px;line-height:1.3;max-width:200px;text-align:right">Last fleet advances — <b>${src.name}</b> is left undefended${advChamp?` · ${advChamp.name} advances`:''}</span>`:''}${advToggle}<button class="btn primary ${G.humanSide}" data-act="capture">Claim ${tgt.name} →</button>`;
     }
     else if(c.ended) controls=`<button class="btn primary ${G.humanSide}" data-act="retreat">Withdraw →</button>`;
     else { if(c.stalled) controls+=`<span style="font-size:12px;color:var(--gold);margin-right:6px">Held behind Valor — break off.</span>`;
@@ -2416,17 +2877,35 @@ function viewCombat(){ const c=G.combat; if(!c) return viewBoard();
   </div>`; }
 
 /* ---- force screen (faithful to force-screen.jsx) ---- */
-function forceLegendHTML(me){ const pl=P(me); if(pl.legendUnlocked) return '';
-  const lg=CHAMPIONS[LEGEND_OF[me]]; const k=sc(me); const can=canUnlockLegend(me);
-  const need=[]; if(pl.influence<LEGEND_COST) need.push(`${LEGEND_COST}◈ (have ${pl.influence})`);
-  if(G.worlds[capitalOf(me)].owner!==me) need.push('hold your capital');
-  return `<div style="margin:12px 36px 0;padding:11px 16px;display:flex;align-items:center;gap:14px;border:1px solid ${can?'var(--gold)':'var(--line)'};background:${can?'rgba(243,210,122,.08)':'rgba(7,14,24,.5)'}">
-    <div style="width:40px;height:40px;flex:none;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);background:radial-gradient(circle,${k.g},${k.c});box-shadow:0 0 14px ${k.c};display:grid;place-items:center"><span style="color:#04070d;font-weight:700;position:relative">★</span></div>
-    <div style="flex:1;min-width:0"><div class="eyebrow" style="font-size:8px;color:var(--gold)">Legendary Unlock · §7c</div>
-      <div style="font-size:14px;font-weight:700">${lg.name} <span style="font-size:11px;color:${k.g};font-weight:600">· ${lg.ability}</span></div>
-      <div style="font-size:10.5px;color:var(--ink-dim);line-height:1.45">${can?`Ready — a ${lg.hp}-health, ${(lg.heroDice||2)}-hero-die capstone takes the field at your capital.`:`Locked · need ${need.join(' + ')}`}</div></div>
-    ${can?`<button class="btn primary ${k.cls}" data-act="unlocklegend">★ Unlock · ${LEGEND_COST}◈</button>`:''}
+// §7c/§7d — one unified "Reinforcements" rail: the legendary unlock and every undrafted reserve champion
+// share a single row of COMPACT one-line summon pills (kept short so the power-detail panel keeps its height).
+function reinforceCardHTML({k, isLegend, name, ability, cost, can, act, arg, reason}){
+  const accent = isLegend ? 'var(--gold)' : k.c;
+  const line2 = can ? `<span style="color:${k.g}">${isLegend?'Legendary · ':''}✦ ${ability}</span>`
+                    : `<span style="color:var(--ink-faint)">${reason}</span>`;
+  return `<div class="panel" style="flex:1 1 240px;min-width:225px;max-width:380px;padding:7px 11px;display:flex;align-items:center;gap:10px;border:1px solid ${can?accent:'var(--line)'};background:${can?(isLegend?'rgba(243,210,122,.07)':k.soft2):'rgba(7,14,24,.45)'}">
+    <div style="width:28px;height:28px;flex:none;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);background:radial-gradient(circle,${k.g},${k.c});box-shadow:0 0 9px ${k.c};display:grid;place-items:center"><span style="color:#04070d;font-weight:700;font-size:12px">${isLegend?'★':'✦'}</span></div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</span><span class="tnum" style="font-size:10px;font-weight:700;color:var(--gold);flex:none">${cost}◈</span></div>
+      <div style="font-size:9px;font-weight:600;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${line2}</div>
+    </div>
+    <button class="btn ${can?'primary '+k.cls:''}" data-act="${act}" ${arg?`data-arg="${arg}"`:''} ${can?'':'disabled'} style="flex:none;font-size:9.5px;padding:6px 9px;white-space:nowrap">${isLegend?'★ Unlock':'✦ Recruit'}</button>
   </div>`; }
+function forceReinforceHTML(me){ const pl=P(me), k=sc(me); const cards=[];
+  if(!pl.legendUnlocked){ const lg=CHAMPIONS[LEGEND_OF[me]]; const can=canUnlockLegend(me);
+    const need=[]; if(pl.influence<LEGEND_COST) need.push(`${LEGEND_COST-pl.influence} more ◈`);
+    if(G.worlds[capitalOf(me)].owner!==me) need.push('hold capital');
+    cards.push(reinforceCardHTML({ k, isLegend:true, name:lg.name, ability:lg.ability,
+      cost:LEGEND_COST, can, act:'unlocklegend', reason:'Locked · '+need.join(' + ') })); }
+  const host=recruitHost(me);
+  recruitable(me).forEach(kind=>{ const c=CHAMPIONS[kind]; const can=canRecruit(me,kind);
+    const reason = !host ? 'No free held world' : (pl.influence<c.cost ? `Need ${c.cost-pl.influence} more ◈` : 'Unavailable');
+    cards.push(reinforceCardHTML({ k, isLegend:false, name:c.name, ability:c.ability,
+      cost:c.cost, can, act:'recruit', arg:kind, reason })); });
+  if(!cards.length) return '';
+  return `<div style="margin:9px 36px 0;flex:none">
+    <div class="eyebrow" style="font-size:7.5px;color:var(--gold);margin-bottom:5px">Reinforcements · spend ◈ to bring a champion to the field</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch">${cards.join('')}</div></div>`; }
 function viewForce(){ const me=G.humanSide, k=sc(me), pl=P(me); const hand=pl.hand;
   const noChamp=livingChampions(me).length===0;
   if(UI.forceSel>=hand.length) UI.forceSel=Math.max(0,hand.length-1);
@@ -2455,10 +2934,10 @@ function viewForce(){ const me=G.humanSide, k=sc(me), pl=P(me); const hand=pl.ha
           <div style="text-align:center"><div class="tnum" style="font-size:18px;font-weight:700;color:var(--ink-dim)">${pl.deck.length}</div><div class="eyebrow" style="font-size:7.5px">Deck</div></div></div>
         <button class="btn primary ${k.cls}" data-act="endforce" style="align-self:center">End Turn →</button>
       </div></div>
-    ${forceLegendHTML(me)}
-    ${noChamp?`<div style="margin:12px 36px 0;padding:10px 16px;display:flex;align-items:center;gap:12px;border:1px solid var(--sith);background:rgba(255,52,71,.07)">
+    ${forceReinforceHTML(me)}
+    ${noChamp?`<div style="margin:12px 36px 0;flex:none;padding:9px 16px;display:flex;align-items:center;gap:12px;border:1px solid var(--sith);background:rgba(255,52,71,.07)">
       <span style="font-size:18px;color:var(--sith-glow);flex:none">⚠</span>
-      <div style="font-size:11.5px;color:var(--ink);line-height:1.45"><b>No champion in play.</b> Powers are channeled <i>through</i> a Force-Sensitive — with none on the board, your whole hand is locked until one takes the field again.</div></div>`:''}
+      <div style="font-size:11.5px;color:var(--ink);line-height:1.45"><b>No champion in play.</b> Powers are channeled <i>through</i> a Force-Sensitive — with none on the board, your hand stays locked. ${recruitable(me).length?'Call up a reserve above to take the field again.':'Unlock your legend above to take the field again.'}</div></div>`:''}
     ${ card ? `
     <div style="flex:1;min-height:0;display:grid;place-items:center;padding:14px 36px;overflow:auto">
       <div class="panel brackets" style="position:relative;width:min(840px,100%);display:flex;gap:24px;align-items:stretch;padding:20px 24px;border:1px solid ${affordable?k.c:'var(--line)'};background:linear-gradient(150deg, ${k.soft}, rgba(7,14,24,.96) 62%);box-shadow:${affordable?`0 0 34px ${k.soft}`:'none'}">
@@ -2503,22 +2982,60 @@ function viewVictory(){ const win=G.winner, f=FAC[win], k=sc(win), youWon=win===
     </div></div>`; }
 
 /* ============================ EVENTS ====================================== */
-$app.addEventListener('click',(e)=>{ const el=e.target.closest('[data-act]'); if(!el) return;
+$app.addEventListener('click',(e)=>{
+  if(_cam.supTs && Date.now()-_cam.supTs<250){ _cam.supTs=0; return; }   // §10f — swallow the click that ends a map drag
+  const el=e.target.closest('[data-act]'); if(!el) return;
   handle(el.dataset.act, el.dataset.arg); });
+// §10f — drag-to-pan / wheel-to-zoom / pinch-to-zoom on a zoomable board. Attached once on $app so it survives
+// every render(); updates UI.map* + applyMapTransform live (no full rebuild), and time-stamps drags so the
+// trailing click doesn't also select a planet.
+const _cam={ pointers:new Map(), dragging:false, moved:0, sx:0, sy:0, spx:0, spy:0, pinch:0, supTs:0 };
+function _camRect(){ const c=_q('.center.pannable'); return c?c.getBoundingClientRect():null; }
+$app.addEventListener('pointerdown',(e)=>{ if(!(THEATER&&THEATER.zoomable)) return; const c=e.target.closest('.center.pannable'); if(!c) return;
+  if(e.target.closest('.mapzoom')) return;   // zoom buttons handle themselves
+  _cam.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(_cam.pointers.size===1){ _cam.dragging=true; _cam.moved=0; _cam.sx=e.clientX; _cam.sy=e.clientY; _cam.spx=UI.mapPanX||0; _cam.spy=UI.mapPanY||0; c.classList.add('panning'); }
+  else if(_cam.pointers.size===2){ const p=[..._cam.pointers.values()]; _cam.pinch=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y); } });
+$app.addEventListener('pointermove',(e)=>{ if(!_cam.pointers.has(e.pointerId)) return; _cam.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(_cam.pointers.size>=2){ const p=[..._cam.pointers.values()]; const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y); const r=_camRect();
+    if(_cam.pinch>0 && r){ mapZoomAbout((UI.mapZoom||1)*(d/_cam.pinch), (p[0].x+p[1].x)/2-r.left, (p[0].y+p[1].y)/2-r.top); applyMapTransform(); }
+    _cam.pinch=d; _cam.moved+=99; return; }
+  if(_cam.dragging){ const dx=e.clientX-_cam.sx, dy=e.clientY-_cam.sy; _cam.moved=Math.max(_cam.moved,Math.abs(dx)+Math.abs(dy));
+    UI.mapPanX=_cam.spx+dx; UI.mapPanY=_cam.spy+dy; clampMapPan(); applyMapTransform(); } });
+function _camEnd(e){ if(_cam.pointers.has(e.pointerId)) _cam.pointers.delete(e.pointerId);
+  if(_cam.pointers.size<2) _cam.pinch=0;
+  if(_cam.pointers.size===0){ if(_cam.dragging && _cam.moved>6) _cam.supTs=Date.now(); _cam.dragging=false;
+    const c=document.querySelector('.center.panning'); if(c) c.classList.remove('panning'); } }
+$app.addEventListener('pointerup',_camEnd); $app.addEventListener('pointercancel',_camEnd);
+$app.addEventListener('wheel',(e)=>{ if(!(THEATER&&THEATER.zoomable)) return; const c=e.target.closest('.center.pannable'); if(!c) return;
+  e.preventDefault(); const r=c.getBoundingClientRect();
+  mapZoomAbout((UI.mapZoom||1)*Math.exp(-e.deltaY*0.0015), e.clientX-r.left, e.clientY-r.top); applyMapTransform(); }, {passive:false});
+// §17 — keep text fields (chat / room code) in UI so a re-render (e.g. an incoming state broadcast) never wipes
+// what you're typing; the value is re-emitted from UI on the next render.
+$app.addEventListener('input',(e)=>{ const t=e.target; if(!t||!t.dataset) return;
+  if(t.dataset.chatinput!=null) UI.chatDraft=t.value;
+  else if(t.dataset.codeinput!=null) UI.codeDraft=t.value.toUpperCase(); });
+$app.addEventListener('keydown',(e)=>{ const t=e.target; if(!t||!t.dataset||e.key!=='Enter') return;   // Enter sends chat / submits a code
+  if(t.dataset.chatinput!=null){ handle('netchatsend',''); }
+  else if(t.dataset.codeinput!=null){ handle('netjoinsubmit',''); } });
 document.addEventListener('keydown',(e)=>{ if(e.key!=='Escape'||!G) return;   // Esc closes any open overlay (§12c / §6.1)
-  if(UI.showLog){ UI.showLog=false; render(); } else if(UI.showOnboard){ UI.showOnboard=false; onboardSeen(true); render(); } });
+  if(UI.showChat){ UI.showChat=false; render(); }
+  else if(UI.showLog){ UI.showLog=false; render(); } else if(UI.showOnboard){ UI.showOnboard=false; onboardSeen(true); render(); } });
 function handle(act,arg){
   sfx('click');   // §12d — the click that also lazily wakes the AudioContext on first gesture
+  // §17 — as the guest, every game-mutating action is RELAYED to the host (authority). Pure view / intent
+  // build-up runs locally for instant feedback; lobby & online-control acts (below) are handled directly.
+  if(isGuest() && G && !NET_LOCAL_ACTS.has(act) && !act.startsWith('net')){ netSendAction(act,arg); return; }
   // menu-level
   switch(act){
-    case 'gotheater': UI.screen='theater'; if(!UI.theater) UI.theater='galaxy'; render(); return;
+    case 'gotheater': UI.screen='theater'; render(); return;   // no default selection — the player chooses
     case 'picktheater': if(MAPS[arg] && MAPS[arg].state!=='soon'){ UI.theater=arg; render(); } return;
-    case 'confirmtheater': { const id=UI.theater||'galaxy'; if(!MAPS[id]||MAPS[id].state==='soon') return; loadTheater(id); UI.screen='select'; UI.draft=[]; UI.draftLight=null; UI.selSide=(UI.mode==='hotseat')?THEATER.light:null; render(); return; }
+    case 'confirmtheater': { const id=UI.theater; if(!id||!MAPS[id]||MAPS[id].state==='soon') return; loadTheater(id); UI.screen='select'; UI.draft=[]; UI.draftLight=null; UI.selSide=(UI.mode==='hotseat'||UI.mode==='online')?THEATER.light:null; render(); return; }
     case 'goselect': UI.screen='select'; UI.draft=[]; UI.selSide=null; render(); return;
-    case 'backtitle': UI.screen='title'; render(); return;
-    case 'setmode': UI.mode=(arg==='hotseat')?'hotseat':'ai'; UI.draft=[]; UI.draftLight=null;   // §14.1 — vs AI / hotseat toggle
-      UI.selSide=(UI.mode==='hotseat')?THEATER.light:null; render(); return;
-    case 'pickside': if(UI.mode==='hotseat') return; UI.selSide=arg; UI.draft=[]; render(); return;   // §14.2 — hotseat drafts in a fixed order
+    case 'backtitle': if(NET){ netLeave(); return; } UI.screen='title'; render(); return;
+    case 'setmode': UI.mode=(arg==='hotseat')?'hotseat':(arg==='online')?'online':'ai';   // §14.1/§17 — vs AI / hotseat / online toggle
+      UI.draft=[]; UI.draftLight=null; UI.selSide=(UI.mode==='hotseat'||UI.mode==='online')?THEATER.light:null; render(); return;
+    case 'pickside': if(UI.mode==='hotseat'||isGuest()) return; UI.selSide=arg; UI.draft=[]; render(); return;   // §14.2 — hotseat drafts fixed order; online guest's side is locked
     case 'ailevel': UI.aiLevel=clamp(parseInt(arg),0,2); render(); return;
     case 'togglemanda': UI.mandaRaids = !(UI.mandaRaids!==false); render(); return;   // §16 — Mandalore raids On/Off at setup
     case 'draft': UI.draft=UI.draft||[]; if(UI.draft.includes(arg)) UI.draft=UI.draft.filter(x=>x!==arg); else if(UI.draft.length<2) UI.draft.push(arg); render(); return;
@@ -2541,11 +3058,24 @@ function handle(act,arg){
     case 'showlog': if(G){ UI.showLog=!UI.showLog; render(); } return;                          // §12c — the Log button toggles the full battle log
     case 'dismisslog': if(G){ UI.showLog=false; render(); } return;
     case 'togglemute': setMuted(!isMuted()); if(G) render(); return;                            // §12d — persisted mute
+    case 'zoomin':  if(THEATER&&THEATER.zoomable) mapZoomBtn(MAP.STEP); return;                  // §10f — camera (works while spectating too)
+    case 'zoomout': if(THEATER&&THEATER.zoomable) mapZoomBtn(1/MAP.STEP); return;
+    case 'zoomreset': if(THEATER&&THEATER.zoomable) resetMapView(); return;
+    // §17 — online lobby & control (handled locally; never relayed)
+    case 'goonline': if(aiTimer){ clearTimeout(aiTimer); aiTimer=null; } G=null; NET={ status:'menu', chat:[] }; UI={ screen:'online' }; render(); return;
+    case 'hostsetup': NET=null; UI={ screen:'theater', mode:'online', draft:[], draftLight:null, selSide:null }; render(); return;
+    case 'joinsetup': NET={ role:'guest', status:'entercode', chat:[] }; UI={ screen:'online', mode:'online', codeDraft:'' }; render(); return;
+    case 'netjoinsubmit': netJoinCreate(UI.codeDraft||arg||''); return;
+    case 'netcreate': if((UI.draft||[]).length===2) netHostCreate(); return;   // host has drafted → open the room
+    case 'netready': if(isGuest() && (UI.draft||[]).length===2){ netSend({ t:'lobby', sub:'ready', champs:UI.draft.slice() }); NET.status='waitstart'; UI.screen='online'; render(); } return;
+    case 'netchattoggle': if(isOnline()){ UI.showChat=!UI.showChat; render(); } return;
+    case 'netchatsend': { const t=(UI.chatDraft||'').trim(); if(t && isOnline()){ netSendChat(t); UI.chatDraft=''; render(); } return; }
+    case 'netleave': netLeave(); return;
     case 'noop': return;                                                                        // overlay panel click-trap
   }
   if(!G || G.over) return;
   const isHumanTurn=G.active===G.humanSide;
-  if(!isHumanTurn) return; // spectator during AI turn
+  if(!isHumanTurn && !_applyingRemote) return; // spectator during AI / opponent turn (host applies relayed guest input via _applyingRemote)
   switch(act){
     case 'world': onWorldClick(arg); break;
     case 'undo': doUndo(); break;   // §12b — walk back a Reinforce/Maneuver/deploy step
@@ -2558,7 +3088,7 @@ function handle(act,arg){
     case 'setsrc': UI.src=arg; UI.sel=arg; UI.moveN=1; UI.moveChamp=false; render(); break;
     case 'cancelsrc': UI.src=null; UI.moveChamp=false; render(); break;
     case 'togglechamp': UI.moveChamp=!UI.moveChamp; if(!UI.moveChamp && UI.moveN<1) UI.moveN=1; render(); break;
-    case 'moven': { const S=G.worlds[UI.src]; const mx=S.fleets-1; const canBring=S.champion&&S.champion.side===G.humanSide;
+    case 'moven': { const S=G.worlds[UI.src]; const mx=S.fleets-1; const canBring=S.champion&&S.champion.side===G.active;
       const min=(canBring&&UI.moveChamp)?0:1; UI.moveN=clamp((UI.moveN||1)+parseInt(arg),min,mx); render(); break; }
     case 'domove': { const mx=G.worlds[UI.src].fleets-1; doManeuver(UI.src, arg, clamp(UI.moveN,0,mx), UI.moveChamp); break; }
     case 'relocatechamp': doManeuver(UI.src, arg, 0, true); break;   // move a lone champion off a single-fleet world
@@ -2567,10 +3097,14 @@ function handle(act,arg){
     case 'retreat': retreatAssault(); break;
     case 'capturemoven': { const c=G.combat; if(c&&c.captured){ c.moveN=clamp((c.moveN||0)+parseInt(arg), c.moveMin, c.moveMax); render(); } break; }
     case 'capture': confirmCapture(); break;
+    case 'toggleadvance': { const c=G.combat;   // §4e — let the player decide if the surviving champion moves into the conquest
+      if(c && c.captured && !c.overextend && c.atk===G.active){ const s=G.worlds[c.fromId];
+        if(s.champion && s.champion.side===c.atk){ c.advancing=!c.advancing; render(); } } break; }
     case 'forcesel': UI.forceSel=parseInt(arg); render(); break;
     case 'channel': onChannel(); break;
-    case 'unlocklegend': if(G.active===G.humanSide && canUnlockLegend(G.humanSide)){ unlockLegend(G.humanSide); render(); } break;
-    case 'casttarget': channelPower(G.humanSide, UI.targeting.idx, arg); break;
+    case 'unlocklegend': if(canUnlockLegend(G.active)){ unlockLegend(G.active); render(); } break;            // actor = the active player (gated above)
+    case 'recruit': if(canRecruit(G.active, arg)){ recruitChampion(G.active, arg); render(); } break;          // §7d — call up a reserve champion
+    case 'casttarget': if(UI.targeting) channelPower(G.active, UI.targeting.idx, arg); break;
     case 'cancelcast': UI.targeting=null; UI.screen='force'; render(); break;
     case 'endforce': advancePhase(); break;
     case 'nextphase': advancePhase(); break;
@@ -2579,12 +3113,12 @@ function handle(act,arg){
 function onWorldClick(wid){ UI.sel=wid;
   if(UI.screen==='deployheroes'){ deployHeroAt(wid); return; }
   if(UI.screen!=='board'){ render(); return; }
-  if(UI.targeting){ if(validPowerTargets(G.humanSide,UI.targeting.power).includes(wid)) channelPower(G.humanSide,UI.targeting.idx,wid); else render(); return; }
+  if(UI.targeting){ if(validPowerTargets(G.active,UI.targeting.power).includes(wid)) channelPower(G.active,UI.targeting.idx,wid); else render(); return; }
   if(G.phase===1){ if(UI.src){ if(ADJ[UI.src].includes(wid) && isAssaultTarget(UI.src,wid)) render(); else if(canAssaultFrom(wid)){ UI.src=wid; render(); } else { UI.src=null; render(); } } else if(canAssaultFrom(wid)){ UI.src=wid; render(); } else render(); return; }
-  if(G.phase===2){ if(UI.src){ if(UI.src!==wid && ADJ[UI.src].includes(wid) && G.worlds[wid].owner===G.humanSide) render(); else if(canManeuverFrom(wid)){ UI.src=wid; render(); } else { UI.src=null; render(); } } else if(canManeuverFrom(wid)){ UI.src=wid; render(); } else render(); return; }
+  if(G.phase===2){ if(UI.src){ if(UI.src!==wid && ADJ[UI.src].includes(wid) && G.worlds[wid].owner===G.active) render(); else if(canManeuverFrom(wid)){ UI.src=wid; render(); } else { UI.src=null; render(); } } else if(canManeuverFrom(wid)){ UI.src=wid; render(); } else render(); return; }
   render();
 }
-function onChannel(){ const me=G.humanSide, idx=UI.forceSel, pl=P(me); const id=pl.hand[idx]; if(!id||!canChannel(me,idx)) return;
+function onChannel(){ const me=G.active, idx=UI.forceSel, pl=P(me); const id=pl.hand[idx]; if(!id||!canChannel(me,idx)) return;
   const pw=POWERS[id];
   if(pw.target){ UI.targeting={ idx, power:id }; UI.screen='board'; UI.sel=validPowerTargets(me,id)[0]||UI.sel; render(); }
   else channelPower(me, idx, null);
@@ -2597,7 +3131,7 @@ function lsSet(k,v){ try{ if(typeof localStorage==='undefined') return; localSto
 function lsDel(k){ try{ if(typeof localStorage==='undefined') return; localStorage.removeItem(k); }catch(e){} }
 
 // §12a — save & resume. Autosaved at the end of render() while a game is live; never serialize aiTimer (it's not in G/UI).
-function saveGame(){ if(!G || G.over || typeof localStorage==='undefined') return;   // skip the stringify cost when there's nothing/nowhere to save
+function saveGame(){ if(!G || G.over || G.online || typeof localStorage==='undefined') return;   // §17 online games aren't resumable from disk (reconnect handles continuity); skip otherwise when there's nothing/nowhere to save
   try{ localStorage.setItem(RULES_EXT.SAVE_KEY, JSON.stringify({ v:RULES_EXT.SAVE_VERSION, theaterId:THEATER.id, G, UI })); }catch(e){} }
 function loadSave(){ const raw=lsGet(RULES_EXT.SAVE_KEY); if(!raw) return null;
   try{ const s=JSON.parse(raw);
